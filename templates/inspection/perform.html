@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}점검 실시 기록{% endblock %}
+{% block breadcrumb %}🗓️ 법정점검 › {{ itype.name }} 실시{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ itype.name }} — 점검 실시 기록</div>
+  <a href="{{ url_for('inspection.index') }}" class="btn btn-outline">← 일정표</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;background:var(--bg-base);">
+  <div style="padding:14px 20px;font-size:0.85rem;color:var(--text-secondary);">
+    <strong>근거 법령:</strong> {{ itype.legal_basis }} &nbsp;|&nbsp;
+    <strong>법정 주기:</strong> {{ itype.cycle_months }}개월 &nbsp;|&nbsp;
+    <strong>직전 실시:</strong> {{ itype.last_performed_date or '없음' }}
+  </div>
+</div>
+
+<div class="card" style="max-width:720px;">
+  <div class="card-header">📝 점검 기록 입력</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label class="form-label">실시일 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="performed_date" class="form-control" required value="{{ today }}"
+                 onchange="document.getElementById('ndhint').textContent='(주기 적용 시 약 '+addMonths(this.value,{{ itype.cycle_months }})+')'">
+        </div>
+        <div>
+          <label class="form-label">차기 예정일 <span style="font-size:0.72rem;color:var(--text-muted)">(미입력 시 주기로 자동계산)</span></label>
+          <input type="date" name="next_due_date" class="form-control" value="{{ suggested_next }}">
+          <div id="ndhint" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;"></div>
+        </div>
+        <div>
+          <label class="form-label">점검 결과</label>
+          <select name="result" class="form-control">
+            <option value="적합">적합</option>
+            <option value="조건부">조건부 적합</option>
+            <option value="부적합">부적합</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">점검자 / 점검기관</label>
+          <input type="text" name="performer" class="form-control" placeholder="예: ○○소방점검업체 / 홍길동">
+        </div>
+        <div>
+          <label class="form-label">담당 부서</label>
+          <select name="department_id" class="form-control">
+            <option value="">-- 선택 --</option>
+            {% for d in departments %}
+            <option value="{{ d.id }}">{{ d.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">증빙 파일 (점검결과서 등)</label>
+          <input type="file" name="file" class="form-control">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">지적/특이사항</label>
+          <textarea name="finding" class="form-control" rows="3" placeholder="점검 시 발견된 지적사항·특이사항"></textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">조치 내용</label>
+          <textarea name="action" class="form-control" rows="3" placeholder="지적사항에 대한 조치/개선 내용"></textarea>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end;">
+        <a href="{{ url_for('inspection.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary">점검 기록 등록 → 차기 예정일 갱신</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addMonths(dateStr, months) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0,10);
+}
+</script>
+{% endblock %}

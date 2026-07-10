@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ plan.title }} — 교육계획{% endblock %}
+{% block breadcrumb %}🎓 교육훈련 › {{ plan.year }}년 계획 › {{ plan.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      {% if plan.category == '법정의무' %}<span style="background:#fee2e2;color:#991b1b;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:700;">법정의무</span>
+      {% elif plan.category == '절차서요구' %}<span style="background:#dbeafe;color:#1e40af;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:700;">절차서 요구</span>
+      {% else %}<span style="background:var(--bg-base);color:var(--text-secondary);padding:2px 10px;border-radius:10px;font-size:0.75rem;">{{ plan.category }}</span>{% endif %}
+      <span class="status-badge {% if plan.is_done %}status-active{% else %}status-obsolete{% endif %}">{{ '실행 완료' if plan.is_done else '미실시' }}</span>
+    </div>
+    <div class="page-title">{{ plan.title }} <span>{{ plan.year }}년 교육계획</span></div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.has_training_edit() %}
+    <a href="{{ url_for('training.new', plan_id=plan.id) }}" class="btn btn-primary">＋ 실행이력 등록</a>
+    <a href="{{ url_for('training.plan_edit', pid=plan.id) }}" class="btn btn-outline">✏️ 계획 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or (current_user.has_training_edit() and plan.created_by_id == current_user.id) %}
+    <form method="POST" action="{{ url_for('training.plan_delete', pid=plan.id) }}" style="display:inline;"
+          onsubmit="return confirm('교육계획을 삭제하시겠습니까? (실행이력은 보존됩니다)');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('training.index', year=plan.year) }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;align-items:start;">
+  <!-- 계획 정보 -->
+  <div class="card">
+    <div class="card-header">📋 계획 정보</div>
+    <div class="card-body">
+      <table style="width:100%;border-collapse:collapse;">
+        {% macro row(label, value) %}
+        <tr>
+          <td style="padding:9px 0;width:80px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+          <td style="padding:9px 0;font-size:0.86rem;border-bottom:1px solid var(--border-light);">{{ value }}</td>
+        </tr>
+        {% endmacro %}
+        {{ row('연도', plan.year ~ '년') }}
+        {{ row('구분', plan.category) }}
+        {{ row('주관', plan.host or (plan.department.name if plan.department else '-')) }}
+        {{ row('교육기관', plan.institution or '-') }}
+        {{ row('대상', plan.target_desc or '-') }}
+        {{ row('인원', (plan.target_count ~ '명') if plan.target_count else '-') }}
+        {{ row('실시주기', plan.cycle or '-') }}
+        {{ row('계획 월', (plan.planned_month_list|join('월, ') ~ '월') if plan.planned_month_list else '수시/발생시') }}
+        {{ row('계획시간', (plan.planned_hours|int ~ 'h') if plan.planned_hours else '-') }}
+        {{ row('근거', plan.legal_basis or '-') }}
+        {{ row('ISO', plan.iso_standard or '-') }}
+      </table>
+      {% if plan.note %}
+      <div style="margin-top:12px;padding:10px;background:var(--bg-base);border-radius:var(--radius-sm);font-size:0.84rem;">{{ plan.note }}</div>
+      {% endif %}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);text-align:center;">
+        <div style="font-size:0.78rem;color:var(--text-muted);">실행 실적</div>
+        <div style="font-size:1.4rem;font-weight:800;color:var(--accent);margin-top:4px;">{{ executions|length }}회 실시 / {{ plan.total_attendees }}명 이수</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 실행이력 -->
+  <div class="card">
+    <div class="card-header">📚 실행이력 ({{ executions|length }}건)</div>
+    <div style="overflow-x:auto;">
+      {% if executions %}
+      <table class="data-table">
+        <thead><tr><th>교육번호</th><th>교육명</th><th>교육일</th><th>교육기관</th><th style="text-align:center;">시간</th><th style="text-align:center;">이수</th><th style="text-align:center;">첨부</th></tr></thead>
+        <tbody>
+        {% for t in executions %}
+        <tr style="cursor:pointer;" onclick="location.href='{{ url_for('training.detail', tid=t.id) }}'">
+          <td style="font-size:0.78rem;color:var(--text-muted);">{{ t.training_number }}</td>
+          <td style="font-weight:600;">{{ t.title }}</td>
+          <td class="date-cell">{{ t.training_date }}</td>
+          <td>{{ t.institution or '-' }}</td>
+          <td style="text-align:center;">{{ t.hours or '-' }}h</td>
+          <td style="text-align:center;">{{ t.attendee_total }}명{% if t.attendee_mode == 'company' %}<span style="font-size:0.68rem;color:var(--text-muted);">(전사)</span>{% endif %}</td>
+          <td style="text-align:center;">{% if t.file_name %}📎{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state" style="padding:40px 24px;text-align:center;">
+        <div style="font-size:2.4rem;margin-bottom:10px;">📭</div>
+        <p style="color:var(--text-muted);">아직 실행된 교육이 없습니다.</p>
+        {% if current_user.has_training_edit() %}
+        <a href="{{ url_for('training.new', plan_id=plan.id) }}" class="btn btn-primary" style="margin-top:14px;">＋ 실행이력 등록</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

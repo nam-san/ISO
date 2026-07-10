@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}법규 등록부{% endblock %}
+{% block breadcrumb %}⚖️ 환경·안전 › 법규 등록부{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">법규 등록부 <span>Legal Register</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      ISO 14001 / ISO 45001 적용 법규·규제 준수 현황 관리
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('hse.export_legal') }}" class="btn btn-success">📊 Excel 다운로드 (조항 포함)</a>
+    <a href="{{ url_for('hse.new_legal') }}" class="btn btn-primary">＋ 법규 등록</a>
+  </div>
+</div>
+
+{% if non_compliant > 0 %}
+<div class="info-box" style="background:#fee2e2;border:1px solid #ef4444;color:#991b1b;padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:20px;font-size:0.88rem;">
+  ⚠️ <strong>미준수·부분준수 법규 {{ non_compliant }}건</strong>이 있습니다. 즉시 시정조치를 검토하세요.
+</div>
+{% endif %}
+
+<!-- 검색 필터 -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:180px;">
+        <label class="form-label">법규명 검색</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="법규명 검색">
+      </div>
+      <div>
+        <label class="form-label">ISO 규격</label>
+        <select name="iso" class="form-control">
+          <option value="">전체</option>
+          <option value="ISO14001" {% if iso=='ISO14001' %}selected{% endif %}>ISO 14001 환경</option>
+          <option value="ISO45001" {% if iso=='ISO45001' %}selected{% endif %}>ISO 45001 안전</option>
+          <option value="통합" {% if iso=='통합' %}selected{% endif %}>통합</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">준수 현황</label>
+        <select name="status" class="form-control">
+          <option value="">전체</option>
+          <option value="compliant" {% if status=='compliant' %}selected{% endif %}>준수</option>
+          <option value="partial" {% if status=='partial' %}selected{% endif %}>부분준수</option>
+          <option value="non_compliant" {% if status=='non_compliant' %}selected{% endif %}>미준수</option>
+          <option value="na" {% if status=='na' %}selected{% endif %}>해당없음</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('hse.legal') }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 법규 목록 -->
+<div class="card">
+  <div class="card-header">총 <strong>{{ items|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>등록번호</th>
+          <th>법규명</th>
+          <th>유형</th>
+          <th>ISO 규격</th>
+          <th>해당조항</th>
+          <th>적용부서</th>
+          <th>준수현황</th>
+          <th>차기검토일</th>
+          <th>조치</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for item in items %}
+      <tr>
+        <td style="font-size:0.8rem;color:var(--text-muted);">{{ item.reg_number }}</td>
+        <td style="font-weight:600;">
+          <a href="{{ url_for('hse.legal_detail', item_id=item.id) }}" style="color:var(--accent);">{{ item.law_name }}</a>
+          {% set cc = item.clauses.count() %}
+          {% if cc > 0 %}<span style="font-size:0.68rem;background:var(--accent);color:white;border-radius:8px;padding:1px 6px;margin-left:4px;">조항 {{ cc }}</span>{% endif %}
+          {% if item.applicable_clause %}<div style="font-size:0.75rem;color:var(--text-muted);">{{ item.applicable_clause }}</div>{% endif %}
+        </td>
+        <td>{{ item.law_type or '-' }}</td>
+        <td>
+          {% if item.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">ISO 14001</span>
+          {% elif item.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">ISO 45001</span>
+          {% else %}<span class="iso-chip">{{ item.iso_standard }}</span>{% endif %}
+        </td>
+        <td style="font-size:0.82rem;">{{ item.applicable_clause or '-' }}</td>
+        <td style="font-size:0.82rem;">{{ item.applicable_dept or '-' }}</td>
+        <td>
+          {% if item.compliance_status == 'compliant' %}
+            <span class="status-badge status-active">✓ 준수</span>
+          {% elif item.compliance_status == 'partial' %}
+            <span class="status-badge status-review">△ 부분준수</span>
+          {% elif item.compliance_status == 'non_compliant' %}
+            <span class="status-badge status-obsolete">✗ 미준수</span>
+          {% else %}
+            <span class="status-badge status-draft">— 해당없음</span>
+          {% endif %}
+        </td>
+        <td class="date-cell">{{ item.next_review_date or '-' }}</td>
+        <td style="white-space:nowrap;">
+          {% if current_user.has_legal_edit() %}
+          <button class="btn btn-outline btn-sm"
+                  onclick="openStatusModal({{ item.id }}, '{{ item.compliance_status }}', '{{ (item.compliance_note or '')|replace("'","\\'")|replace('\n',' ') }}')">
+            상태변경
+          </button>
+          {% endif %}
+          {% if current_user.is_admin() or item.created_by_id == current_user.id %}
+          {{ icons.delete_form(url_for('hse.delete_legal', item_id=item.id), '법규 등록부 항목을 삭제하시겠습니까? 조항 상세도 함께 삭제되며 되돌릴 수 없습니다.') }}
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">⚖️ 등록된 법규가 없습니다.<br><a href="{{ url_for('hse.new_legal') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 법규 등록하기</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 상태변경 모달 -->
+<div id="statusModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:var(--radius);padding:28px;width:420px;max-width:90vw;box-shadow:var(--shadow-lg);">
+    <h3 style="margin-bottom:16px;font-size:1rem;">준수 현황 업데이트</h3>
+    <form id="statusForm" method="POST">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">준수 현황</label>
+        <select name="compliance_status" id="modalStatus" class="form-control">
+          <option value="compliant">✓ 준수</option>
+          <option value="partial">△ 부분준수</option>
+          <option value="non_compliant">✗ 미준수</option>
+          <option value="na">— 해당없음</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label">준수 방법 / 비고</label>
+        <textarea name="compliance_note" id="modalNote" class="form-control" rows="3"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeStatusModal()">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openStatusModal(id, status, note) {
+  document.getElementById('statusForm').action = '/hse/legal/' + id + '/update-status';
+  document.getElementById('modalStatus').value = status;
+  document.getElementById('modalNote').value = note;
+  const modal = document.getElementById('statusModal');
+  modal.style.display = 'flex';
+}
+function closeStatusModal() {
+  document.getElementById('statusModal').style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ capa.capa_number }}{% endblock %}
+{% block breadcrumb %}🔍 내부심사 › 시정조치 › {{ capa.capa_number }}{% endblock %}
+
+{% block content %}
+{% set ro = capa.status == 'closed' %}
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <span style="font-family:monospace;font-size:0.8rem;color:var(--accent);background:var(--bg-base);padding:3px 10px;border-radius:4px;">{{ capa.capa_number }}</span>
+      <span class="status-badge {% if capa.status=='closed' %}status-active{% elif capa.status=='verified' %}status-review{% else %}status-draft{% endif %}">
+        {{ {'open':'미결','in_progress':'진행중','verified':'검토완료','closed':'종결'}.get(capa.status, capa.status) }}
+      </span>
+      <span class="status-badge {% if capa.nc_type=='major' %}status-obsolete{% elif capa.nc_type=='minor' %}status-review{% else %}status-draft{% endif %}">
+        {{ {'major':'중부적합','minor':'경부적합','obs':'관찰'}.get(capa.nc_type, capa.nc_type) }}
+      </span>
+    </div>
+    <div class="page-title">시정조치 (CAPA)</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:3px;">
+      {% if capa.audit %}심사 {{ capa.audit.audit_number }} · {% endif %}조항 {{ capa.iso_clause or '-' }}
+      {% if capa.department %} · {{ capa.department.name }}{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.is_admin() or (capa.responsible_id == current_user.id and capa.status != 'closed') %}
+    <form method="POST" action="{{ url_for('audit.delete_capa', capa_id=capa.id) }}" style="display:inline;"
+          onsubmit="return confirm('시정조치(CAPA)를 삭제하시겠습니까? 첨부 증빙도 함께 삭제되며 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('audit.capa_list') }}" class="btn btn-outline">← 시정조치 목록</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.5fr 1fr;gap:18px;">
+  <div>
+    <!-- 부적합 내용 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">⚠️ 부적합 내용</div>
+      <div class="card-body" style="white-space:pre-wrap;line-height:1.7;font-size:0.9rem;">{{ capa.nc_description or '-' }}</div>
+    </div>
+
+    <!-- 시정조치 작성 -->
+    <div class="card">
+      <div class="card-header">🛠️ 시정조치 작성</div>
+      <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="action_type" value="save">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">
+            <div>
+              <label class="form-label">부적합 구분</label>
+              <select name="nc_type" class="form-control" {% if ro %}disabled{% endif %}>
+                <option value="minor" {% if capa.nc_type=='minor' %}selected{% endif %}>경부적합</option>
+                <option value="major" {% if capa.nc_type=='major' %}selected{% endif %}>중부적합</option>
+                <option value="obs" {% if capa.nc_type=='obs' %}selected{% endif %}>관찰사항</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">조치 담당자</label>
+              <select name="responsible_id" class="form-control" {% if ro %}disabled{% endif %}>
+                <option value="">-- 선택 --</option>
+                {% for u in users %}<option value="{{ u.id }}" {% if capa.responsible_id==u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">시정 기한</label>
+              <input type="date" name="due_date" class="form-control" value="{{ capa.due_date or '' }}" {% if ro %}readonly{% endif %}>
+            </div>
+            <div>
+              <label class="form-label">진행 상태</label>
+              <select name="status" class="form-control" {% if ro %}disabled{% endif %}>
+                <option value="open" {% if capa.status=='open' %}selected{% endif %}>미결</option>
+                <option value="in_progress" {% if capa.status=='in_progress' %}selected{% endif %}>진행중</option>
+                <option value="verified" {% if capa.status=='verified' %}selected{% endif %}>검토완료</option>
+                <option value="closed" {% if capa.status=='closed' %}selected{% endif %}>종결</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">근본 원인 분석</label>
+            <textarea name="root_cause" class="form-control" rows="3" {% if ro %}readonly{% endif %}>{{ capa.root_cause or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">시정 조치</label>
+            <textarea name="corrective_action" class="form-control" rows="3" {% if ro %}readonly{% endif %}>{{ capa.corrective_action or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">재발방지 예방조치</label>
+            <textarea name="preventive_action" class="form-control" rows="3" {% if ro %}readonly{% endif %}>{{ capa.preventive_action or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label class="form-label">유효성 검증</label>
+            <textarea name="effectiveness" class="form-control" rows="2" {% if ro %}readonly{% endif %}>{{ capa.effectiveness or '' }}</textarea>
+          </div>
+          {% if not ro and current_user.has_edit() %}
+          <div style="margin-bottom:14px;">
+            <label class="form-label">증빙 첨부 (사진·문서, 여러 개 선택 가능)</label>
+            <input type="file" name="attachments" class="form-control" multiple
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif,.webp">
+            <p style="font-size:0.74rem;color:var(--text-muted);margin-top:4px;">저장 시 함께 업로드됩니다. 이미지는 아래에서 클릭하면 확대됩니다.</p>
+          </div>
+          <button type="submit" class="btn btn-primary">💾 시정조치 저장</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <!-- 증빙 자료 (사진 클릭 확대) -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">📎 증빙 자료 ({{ capa.attachments.count() }})</div>
+      <div class="card-body">
+        {% set atts = capa.attachments.all() %}
+        {% if atts %}
+        <div style="display:flex;flex-wrap:wrap;gap:14px;">
+          {% for att in atts %}
+          {% set aurl = url_for('static', filename='uploads/' ~ att.file_path.split('\\')[-1].split('/')[-1]) %}
+          <div style="position:relative;width:130px;">
+            {% if att.is_image %}
+            <img src="{{ aurl }}" class="zoomable" title="클릭하여 확대"
+                 style="width:130px;height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+            {% else %}
+            <a href="{{ aurl }}" download
+               style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:130px;height:130px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);text-decoration:none;color:var(--text-secondary);font-size:0.74rem;text-align:center;padding:8px;">
+              <span style="font-size:1.8rem;">📄</span>
+              <span style="margin-top:6px;word-break:break-all;">{{ att.file_name[:24] }}</span>
+            </a>
+            {% endif %}
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;text-align:center;word-break:break-all;">{{ att.file_name[:20] }}</div>
+            {% if not ro and current_user.has_edit() %}
+            <form method="POST" action="{{ url_for('audit.delete_capa_attachment', att_id=att.id) }}"
+                  onsubmit="return confirm('이 첨부를 삭제하시겠습니까?');"
+                  style="position:absolute;top:4px;right:4px;">
+              <button type="submit" title="삭제"
+                      style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.8rem;line-height:1;">×</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="font-size:0.84rem;color:var(--text-muted);">첨부된 증빙 자료가 없습니다. 위 양식에서 파일을 선택해 저장하세요.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 검토·승인 -->
+  <div class="card" style="align-self:start;">
+    <div class="card-header">검토·승인 단계</div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:0.82rem;line-height:1.8;">
+        <div>작성: {{ capa.responsible.name if capa.responsible else '-' }}</div>
+        <div>검토: {{ capa.reviewed_by.name if capa.reviewed_by else '대기' }}</div>
+        <div>승인: {{ capa.approved_by.name if capa.approved_by else '대기' }}
+          {% if capa.approved_at %}<span style="color:var(--success);">({{ capa.approved_at.strftime('%Y-%m-%d') }})</span>{% endif %}
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+      {% if capa.status == 'closed' %}
+      <div style="color:var(--success);font-size:0.85rem;text-align:center;">✅ 종결된 시정조치입니다.</div>
+      {% elif can_review or can_approve %}
+      {% if can_review %}
+      <form method="POST"><input type="hidden" name="action_type" value="review">
+        <button class="btn btn-outline btn-sm" style="width:100%;">🔍 검토 (유효성 확인)</button>
+      </form>
+      {% endif %}
+      {% if can_approve %}
+      <form method="POST"><input type="hidden" name="action_type" value="approve">
+        <button class="btn btn-success btn-sm" style="width:100%;"
+          onclick="return confirm('시정조치를 승인·종결하시겠습니까?')">✅ 승인·종결</button>
+      </form>
+      {% endif %}
+      {% else %}
+      <div style="font-size:0.8rem;color:var(--text-muted);">검토·승인 권한이 없습니다.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

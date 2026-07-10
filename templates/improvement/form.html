@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ '개선조치 수정' if item else '개선조치 작성' }}{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 › 개선조치 › {{ '수정' if item else '작성' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ '개선조치 수정' if item else '개선조치 작성' }} <span>Risk Improvement</span></div>
+  <a href="{{ url_for('hse.risk') }}" class="btn btn-outline">← 위험성평가</a>
+</div>
+
+{% set grade_cls = {'상':'obsolete','중':'review','하':'draft'} %}
+{% set src = item if item else risk %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <!-- 원본 위험 정보 (자동 매핑, 읽기전용) -->
+  <div class="card">
+    <div class="card-header">📋 대상 위험요인 (자동 매핑)</div>
+    <div class="card-body">
+      <table style="width:100%;">
+        {% macro row(l, v) %}
+        <tr><td style="padding:8px 0;width:110px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);">{{ l }}</td>
+            <td style="padding:8px 0;font-size:0.88rem;">{{ v }}</td></tr>
+        {% endmacro %}
+        {{ row('평가번호', (item.risk.risk_number if item and item.risk else (risk.risk_number if risk else '-'))) }}
+        {{ row('공정(장소)', src.work_area or '-') }}
+        {{ row('평가구분', src.work_type or '-') }}
+        {{ row('위험요인', src.hazard) }}
+        {{ row('현재안전조치', (item.current_control if item else src.control_measure) or '-') }}
+        <tr><td style="padding:8px 0;font-size:0.8rem;font-weight:600;color:var(--text-secondary);">개선 전 위험도</td>
+          <td style="padding:8px 0;">
+            {% set bg = item.before_grade if item else src.risk_grade %}
+            {% set bl = item.before_level if item else src.risk_level %}
+            {% set bp = item.before_probability if item else src.probability %}
+            {% set bs = item.before_severity if item else src.severity %}
+            <span class="status-badge status-{{ grade_cls.get(bg,'draft') }}">{{ bg }} ({{ bl }})</span>
+            <span style="font-size:0.8rem;color:var(--text-muted);">가능성 {{ bp }} × 중대성 {{ bs }}</span>
+          </td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 개선 계획 입력 -->
+  <div class="card">
+    <div class="card-header">🛠️ 개선 계획</div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('improvement.edit', imp_id=item.id) if item else url_for('improvement.new') }}">
+        {% if not item %}<input type="hidden" name="risk_id" value="{{ risk.id }}">{% endif %}
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">개선 대책 / 계획 <span class="text-danger">*</span></label>
+          <textarea name="improvement_plan" class="form-control" rows="5" required
+            placeholder="위험을 줄이기 위한 구체적 개선 대책을 기재하세요.">{{ item.improvement_plan if item else '' }}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">개선 담당자</label>
+          <select name="responsible_id" class="form-control">
+            <option value="">-- 선택 --</option>
+            {% for u in users %}
+            <option value="{{ u.id }}" {% if item and item.responsible_id==u.id %}selected{% endif %}>{{ u.name }} ({{ u.department.name if u.department else '-' }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:20px;">
+          <label class="form-label">개선 목표일</label>
+          <input type="date" name="due_date" class="form-control" value="{{ item.due_date if item and item.due_date else '' }}">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <a href="{{ url_for('improvement.detail', imp_id=item.id) if item else url_for('hse.risk') }}" class="btn btn-outline">취소</a>
+          <button type="submit" class="btn btn-primary">{{ '수정 저장' if item else '개선조치 등록' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

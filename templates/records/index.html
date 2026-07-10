@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}실행기록 관리{% endblock %}
+{% block breadcrumb %}📋 실행기록 관리{% if current_dept %} › {{ current_dept.name }}{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">
+      실행기록 관리
+      {% if current_dept %}
+        <span>— {{ current_dept.name }}</span>
+      {% else %}
+        <span>Records Management</span>
+      {% endif %}
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      {% if current_dept %}
+        {{ current_dept.name }} 부서의 실행기록 목록입니다. &nbsp;
+        <a href="{{ url_for('records.index') }}" style="color:var(--accent);">전체 기록 보기 →</a>
+      {% else %}
+        부서별 실행기록 등록, 대장 관리, 보존연한 관리
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('records.export_excel') }}" class="btn btn-success">📊 대장 Excel 출력</a>
+    <a href="{{ url_for('records.new') }}" class="btn btn-primary">＋ 기록 등록</a>
+  </div>
+</div>
+
+{% if disposal_soon > 0 %}
+<div class="flash-msg flash-warning" style="margin-bottom:16px;">
+  ⚠️ 30일 이내 폐기 예정 기록이 <strong>{{ disposal_soon }}건</strong> 있습니다. 확인하여 적절히 처리하세요.
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:200px;">
+        <label class="form-label">검색어</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="기록번호 또는 제목">
+      </div>
+      <div>
+        <label class="form-label">ISO 규격</label>
+        <select name="iso" class="form-control">
+          <option value="">전체</option>
+          <option value="ISO9001" {% if iso=='ISO9001' %}selected{% endif %}>ISO 9001</option>
+          <option value="ISO14001" {% if iso=='ISO14001' %}selected{% endif %}>ISO 14001</option>
+          <option value="ISO45001" {% if iso=='ISO45001' %}selected{% endif %}>ISO 45001</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">부서</label>
+        <select name="dept" class="form-control">
+          <option value="">전체</option>
+          {% for dept in departments %}
+          <option value="{{ dept.id }}" {% if dept_id|string == dept.id|string %}selected{% endif %}>{{ dept.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('records.index') }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">총 <strong>{{ records|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>기록번호</th><th>제목</th><th>유형</th><th>ISO</th><th>부서</th><th>기록일</th><th>보존연한</th><th>폐기예정일</th><th>상태</th><th>관리</th></tr>
+      </thead>
+      <tbody>
+      {% for rec in records %}
+      <tr>
+        <td style="font-family:monospace;font-size:0.78rem;color:var(--accent);">{{ rec.record_number }}</td>
+        <td style="font-weight:600;">{{ rec.title }}</td>
+        <td>{{ rec.record_type }}</td>
+        <td>
+          {% if rec.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">9001</span>
+          {% elif rec.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">14001</span>
+          {% elif rec.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">45001</span>
+          {% else %}-{% endif %}
+        </td>
+        <td>{{ rec.department.name if rec.department else '-' }}</td>
+        <td class="date-cell">{{ rec.record_date or '-' }}</td>
+        <td style="text-align:center;">{{ rec.retention_years }}년</td>
+        <td class="date-cell" style="{% if rec.disposal_date and rec.disposal_date <= today %}color:var(--danger);font-weight:600;{% endif %}">{{ rec.disposal_date or '-' }}</td>
+        <td><span class="status-badge {% if rec.status == 'active' %}status-active{% else %}status-obsolete{% endif %}">{{ '활성' if rec.status == 'active' else '폐기' }}</span></td>
+        <td>
+          {% if rec.status == 'active' and current_user.has_edit() and (current_user.is_admin() or rec.created_by_id == current_user.id) %}
+          {{ icons.edit_link(url_for('records.edit', rid=rec.id)) }}
+          {% endif %}
+          {% if current_user.is_admin() or (rec.created_by_id == current_user.id and rec.status == 'active') %}
+          {{ icons.delete_form(url_for('records.delete', rid=rec.id), '실행기록을 삭제하시겠습니까? 되돌릴 수 없습니다.') }}
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty-cell">📋 등록된 기록이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

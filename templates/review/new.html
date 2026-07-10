@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}경영검토 개최{% endblock %}
+{% block breadcrumb %}📋 경영검토 › 신규 개최{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">경영검토 개최 <span>New Management Review</span></div>
+  <a href="{{ url_for('review.index') }}" class="btn btn-outline">← 목록</a>
+</div>
+
+<div class="card" style="max-width:760px;">
+  <div class="card-header">📋 기본 정보 입력</div>
+  <div class="card-body">
+    <form method="POST">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+        <div style="grid-column:1/-1;">
+          <label class="form-label">경영검토 제목 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required value="{{ default_title }}">
+        </div>
+
+        <div>
+          <label class="form-label">검토 대상 기간 시작 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="period_start" class="form-control" required value="{{ default_start }}">
+        </div>
+        <div>
+          <label class="form-label">검토 대상 기간 종료 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="period_end" class="form-control" required value="{{ default_end }}">
+        </div>
+
+        <div>
+          <label class="form-label">경영검토 개최일 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="review_date" class="form-control" required value="{{ today }}">
+        </div>
+        <div>
+          <label class="form-label">차기 검토 예정일</label>
+          <input type="date" name="next_review_date" class="form-control">
+        </div>
+
+        <div>
+          <label class="form-label">개최 장소</label>
+          <input type="text" name="venue" class="form-control" placeholder="예: 본사 대회의실">
+        </div>
+        <div>
+          <label class="form-label">의장 (최고경영자)</label>
+          <select name="chairman_id" class="form-control">
+            <option value="">-- 선택 --</option>
+            {% for u in users %}
+            <option value="{{ u.id }}">{{ u.name }} ({{ u.position or u.department.name if u.department else '' }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+      </div>
+
+      <div class="card" style="margin-top:20px;background:var(--bg-base);border:1px solid var(--border);">
+        <div style="padding:14px 18px;">
+          <div style="font-weight:600;font-size:0.88rem;color:var(--text-secondary);margin-bottom:8px;">
+            ℹ️ 생성 후 자동으로 집계되는 현황 데이터
+          </div>
+          <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.8;">
+            · CAPA 미결/기한초과/기간 내 종결 건수<br>
+            · 내부심사 계획 및 완료 건수<br>
+            · 고객 클레임 접수·미처리·긴급 건수<br>
+            · 설계변경 요청·승인 건수<br>
+            · 교육훈련 실시 건수<br>
+            · 법규 등록부 미준수·부분준수 건수<br>
+            · 보존연한 초과 기록 건수, 활성 기준문서 수
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;">
+        <a href="{{ url_for('review.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary">경영검토 생성 및 현황 집계 →</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

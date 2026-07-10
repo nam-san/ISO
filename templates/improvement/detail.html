@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}{{ imp.improvement_number }}{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 › 개선조치 › {{ imp.improvement_number }}{% endblock %}
+
+{% block content %}
+{% set grade_cls = {'상':'obsolete','중':'review','하':'draft'} %}
+{% set status_cls = {'in_progress':'review','completed':'active','approved':'approved'} %}
+{% set can_edit = current_user.has_edit() and imp.status != 'approved' %}
+
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ imp.improvement_number }}
+      <span class="status-badge status-{{ status_cls.get(imp.status,'draft') }}" style="font-size:0.85rem;">{{ status_kr.get(imp.status, imp.status) }}</span>
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ imp.work_area }} · {{ imp.work_type }}</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if can_edit and (current_user.is_admin() or imp.created_by_id == current_user.id) %}
+    <a href="{{ url_for('improvement.edit', imp_id=imp.id) }}" class="btn btn-outline">✏️ 계획 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or (imp.created_by_id == current_user.id and imp.status != 'approved') %}
+    <form method="POST" action="{{ url_for('improvement.delete', imp_id=imp.id) }}" style="display:inline;"
+          onsubmit="return confirm('개선조치를 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('improvement.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <!-- 위험요인 + 개선 전/후 위험도 -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">📋 대상 위험요인</div>
+      <div class="card-body">
+        <div style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:700;margin-bottom:6px;">
+          평가번호:
+          {% if imp.risk %}<a href="{{ url_for('hse.risk', site=imp.risk.site) }}" style="color:var(--accent);">{{ imp.risk.risk_number }}</a>{% else %}-{% endif %}
+        </div>
+        <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;">{{ imp.hazard }}</div>
+        <div style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">현재안전조치: {{ imp.current_control or '-' }}</div>
+        <div style="display:flex;gap:24px;align-items:center;">
+          <div>
+            <div style="font-size:0.74rem;color:var(--text-muted);">개선 전</div>
+            <span class="status-badge status-{{ grade_cls.get(imp.before_grade,'draft') }}" style="font-size:0.9rem;">{{ imp.before_grade }} ({{ imp.before_level }})</span>
+            <div style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">가능성 {{ imp.before_probability }} × 중대성 {{ imp.before_severity }}</div>
+          </div>
+          <div style="font-size:1.4rem;color:var(--text-muted);">→</div>
+          <div>
+            <div style="font-size:0.74rem;color:var(--text-muted);">개선 후</div>
+            {% if imp.after_level %}
+            <span class="status-badge status-{{ grade_cls.get(imp.after_grade,'draft') }}" style="font-size:0.9rem;">{{ imp.after_grade }} ({{ imp.after_level }})</span>
+            <div style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;">가능성 {{ imp.after_probability }} × 중대성 {{ imp.after_severity }}</div>
+            {% else %}<span style="color:var(--text-muted);font-size:0.82rem;">미입력</span>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 개선 계획 -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">🛠️ 개선 대책 / 계획</div>
+      <div class="card-body" style="font-size:0.9rem;white-space:pre-line;">{{ imp.improvement_plan or '-' }}</div>
+    </div>
+
+    <!-- 개선 후 결과 -->
+    <div class="card">
+      <div class="card-header">✅ 개선 후 결과</div>
+      <div class="card-body">
+        {% if can_edit %}
+        <form method="POST" action="{{ url_for('improvement.result', imp_id=imp.id) }}" enctype="multipart/form-data">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+            <div class="form-group">
+              <label class="form-label">개선후 가능성</label>
+              <select name="after_probability" class="form-control">
+                <option value="">-</option>
+                {% for v in [1,2,3,4,5] %}<option value="{{ v }}" {% if imp.after_probability==v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">개선후 중대성</label>
+              <select name="after_severity" class="form-control">
+                <option value="">-</option>
+                {% for v in [1,2,3,4,5] %}<option value="{{ v }}" {% if imp.after_severity==v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">완료일</label>
+              <input type="date" name="completed_date" class="form-control" value="{{ imp.completed_date if imp.completed_date else today }}">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">개선 후 안전조치 <span style="color:var(--danger);">*</span></label>
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:9px 12px;border-radius:6px;font-size:0.76rem;margin-bottom:8px;line-height:1.5;">
+              ℹ️ 아래 <strong>‘개선 후’</strong> 칸에 작성한 내용은 <strong>승인 시 위험성평가 대장의 ‘현재 안전조치’로 자동 업데이트</strong>됩니다.<br>
+              개선으로 실제 적용되는 안전조치를 기재하세요.
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+              <tr>
+                <td style="width:88px;padding:8px;background:var(--bg-base);border:1px solid var(--border);font-weight:600;color:var(--text-secondary);vertical-align:top;">개선 전</td>
+                <td style="padding:8px;border:1px solid var(--border);white-space:pre-line;color:var(--text-muted);">{{ imp.current_control or '-' }}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px;background:#eff6ff;border:1px solid var(--border);font-weight:700;color:var(--primary);vertical-align:top;">개선 후</td>
+                <td style="padding:5px;border:1px solid var(--border);">
+                  <textarea name="after_control" class="form-control" rows="3" style="border:none;box-shadow:none;background:transparent;" placeholder="개선 후 현재 안전조치를 기재하세요. (예: 방책 높이 상향 + 안전매트 이중화, 인터록 이중화 등)">{{ imp.after_control or '' }}</textarea>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">개선 결과 / 실시 내용</label>
+            <textarea name="result" class="form-control" rows="3" placeholder="실제 실시한 개선 내용과 결과를 기재하세요.">{{ imp.result or '' }}</textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label class="form-label">개선 증빙 첨부 (전/후 사진·문서, 여러 개)</label>
+            <input type="file" name="attachments" class="form-control" multiple
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif,.webp">
+          </div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button type="submit" class="btn btn-primary">💾 개선 결과 저장 (승인 상신)</button>
+          </div>
+        </form>
+        {% else %}
+        {% if imp.after_control %}
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--primary);margin-bottom:4px;">🛡️ 개선 후 안전조치 <span style="font-weight:400;color:var(--text-muted);">(위험성평가 ‘현재 안전조치’에 반영됨)</span></div>
+          <div style="font-size:0.88rem;white-space:pre-line;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">{{ imp.after_control }}</div>
+        </div>
+        {% endif %}
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px;">개선 결과 / 실시 내용</div>
+        <div style="font-size:0.9rem;white-space:pre-line;">{{ imp.result or '개선 결과가 아직 입력되지 않았습니다.' }}</div>
+        {% if imp.completed_date %}<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">완료일: {{ imp.completed_date }}</div>{% endif %}
+        {% endif %}
+
+        <!-- 증빙 갤러리 -->
+        {% set atts = imp.attachments.all() %}
+        {% if atts %}
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);">
+          <div style="font-size:0.82rem;font-weight:700;margin-bottom:10px;">📎 개선 증빙 ({{ atts|length }})</div>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;">
+            {% for att in atts %}
+            {% set aurl = url_for('static', filename='uploads/' ~ att.file_path.split('\\')[-1].split('/')[-1]) %}
+            <div style="position:relative;width:120px;">
+              {% if att.is_image %}
+              <img src="{{ aurl }}" class="zoomable" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+              {% else %}
+              <a href="{{ aurl }}" download style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:120px;height:120px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);color:var(--text-secondary);font-size:0.72rem;text-align:center;padding:8px;"><span style="font-size:1.8rem;">📄</span><span style="margin-top:6px;word-break:break-all;">{{ att.file_name[:20] }}</span></a>
+              {% endif %}
+              {% if can_edit %}
+              <form method="POST" action="{{ url_for('improvement.delete_attachment', att_id=att.id) }}" onsubmit="return confirm('첨부를 삭제하시겠습니까?');" style="position:absolute;top:4px;right:4px;">
+                <button type="submit" style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;">×</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 우측: 진행/승인 -->
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📊 진행 상태</div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          {% for step, key in [('개선중(계획)','in_progress'),('승인대기(결과입력)','completed'),('승인완료','approved')] %}
+          {% set steps = ['in_progress','completed','approved'] %}
+          {% set cur = steps.index(imp.status) if imp.status in steps else 0 %}
+          {% set si = steps.index(key) %}
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:{% if si <= cur %}var(--iso-e-light){% else %}var(--bg-base){% endif %};">
+            <span>{% if si < cur %}✅{% elif si == cur %}⏳{% else %}⬜{% endif %}</span>
+            <span style="font-size:0.82rem;font-weight:600;color:{% if si <= cur %}var(--iso-e){% else %}var(--text-muted){% endif %};">{{ step }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <table style="width:100%;margin-top:14px;font-size:0.82rem;">
+          <tr><td style="padding:5px 0;color:var(--text-muted);">담당자</td><td>{{ imp.responsible.name if imp.responsible else '-' }}</td></tr>
+          <tr><td style="padding:5px 0;color:var(--text-muted);">목표일</td><td>{{ imp.due_date or '-' }}</td></tr>
+          <tr><td style="padding:5px 0;color:var(--text-muted);">작성자</td><td>{{ imp.created_by.name if imp.created_by else '-' }}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- 승인 액션 -->
+    <div class="card">
+      <div class="card-header">🔐 승인</div>
+      <div class="card-body">
+        {% if imp.status == 'approved' %}
+        <div class="status-badge status-approved" style="font-size:0.9rem;">승인완료</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);margin-top:8px;">
+          {{ imp.approved_by.name if imp.approved_by else '-' }}<br>
+          {{ imp.approved_at.strftime('%Y-%m-%d %H:%M') if imp.approved_at else '' }}
+        </div>
+        {% elif imp.status == 'completed' %}
+          {% if current_user.has_approve() %}
+          <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:12px;">개선 결과를 검토하고 승인하세요.</p>
+          <div style="display:flex;gap:8px;">
+            <form method="POST" action="{{ url_for('improvement.approve', imp_id=imp.id) }}" style="flex:1;">
+              <button type="submit" class="btn btn-primary" style="width:100%;">✅ 승인</button>
+            </form>
+            <form method="POST" action="{{ url_for('improvement.reject', imp_id=imp.id) }}" style="flex:1;"
+                  onsubmit="return confirm('반려하시겠습니까? 개선중 상태로 되돌아갑니다.');">
+              <button type="submit" class="btn btn-outline" style="width:100%;">↩️ 반려</button>
+            </form>
+          </div>
+          {% else %}
+          <p style="font-size:0.84rem;color:var(--text-muted);">승인 대기 중입니다. (승인권자만 승인 가능)</p>
+          {% endif %}
+        {% else %}
+        <p style="font-size:0.84rem;color:var(--text-muted);">개선 후 결과를 입력하고 저장하면 승인 요청됩니다.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

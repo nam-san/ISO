@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ t.training_number }} 상세{% endblock %}
+{% block breadcrumb %}🎓 교육훈련 › {{ t.training_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ t.training_number }} <span>{{ t.title }}</span></div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.has_training_edit() and (current_user.is_admin() or t.created_by_id == current_user.id) %}
+    <a href="{{ url_for('training.edit', tid=t.id) }}" class="btn btn-primary">✏️ 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or t.created_by_id == current_user.id %}
+    <form method="POST" action="{{ url_for('training.delete', tid=t.id) }}" style="display:inline;"
+          onsubmit="return confirm('교육훈련 기록을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('training.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">🎓 교육 기본 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(label, value) %}
+          <tr>
+            <td style="padding:10px 0;width:130px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+            <td style="padding:10px 0;font-size:0.88rem;border-bottom:1px solid var(--border-light);">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('교육번호', t.training_number) }}
+          {{ row('교육명', t.title) }}
+          {{ row('교육유형', t.training_type or '-') }}
+          {{ row('ISO 규격', t.iso_standard or '-') }}
+          {{ row('교육일', t.training_date) }}
+          {{ row('종료일', t.end_date or '-') }}
+          {{ row('교육시간', (t.hours|string + 'h') if t.hours else '-') }}
+          {{ row('교육기관/강사', t.institution or '-') }}
+          {{ row('교육장소', t.location or '-') }}
+          {{ row('소관부서', t.department.name if t.department else '-') }}
+          {{ row('등록자', t.created_by.name if t.created_by else '-') }}
+          {{ row('등록일', t.created_at.strftime('%Y-%m-%d')) }}
+        </table>
+        {% if t.content %}
+        <div style="margin-top:16px;padding:14px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">교육 내용 / 목표</div>
+          <div style="font-size:0.88rem;white-space:pre-line;">{{ t.content }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 참석자 목록 -->
+    <div class="card">
+      <div class="card-header">👥 참석자 {% if t.attendee_mode == 'company' %}(전사·단체 교육){% else %}명단 (총 {{ attendees|length }}명){% endif %}</div>
+      <div style="overflow-x:auto;">
+        {% if t.attendee_mode == 'company' %}
+        <div style="padding:24px;text-align:center;">
+          <div style="font-size:2.2rem;font-weight:700;color:var(--accent);">{{ t.headcount or 0 }}명</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">전사·단체 교육 참석 인원 (개별 명단 미등록)</div>
+        </div>
+        {% elif attendees %}
+        <table class="data-table">
+          <thead><tr><th>이름</th><th>소속부서</th><th>이수여부</th></tr></thead>
+          <tbody>
+          {% for a in attendees %}
+          <tr>
+            <td style="font-weight:600;">{{ a.name or (a.user.name if a.user else '-') }}</td>
+            <td>{{ a.department_name or (a.user.department.name if a.user and a.user.department else '-') }}</td>
+            <td>
+              {% if a.completed %}
+                <span style="color:var(--success);font-weight:600;">✓ 이수</span>
+              {% else %}
+                <span style="color:var(--danger);">✗ 미이수</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding:20px;"><p>참석자 정보가 없습니다.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    {% if file_url %}
+    <div class="card">
+      <div class="card-header">📎 첨부파일</div>
+      <div class="card-body">
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">{{ t.file_name }}</p>
+        <a href="{{ file_url }}" class="btn btn-outline btn-sm" style="width:100%;text-align:center;display:block;" download>⬇️ 파일 다운로드</a>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card" style="margin-top:{% if file_url %}16px{% else %}0{% endif %};">
+      <div class="card-header">📊 Excel 대장 출력</div>
+      <div class="card-body">
+        <a href="{{ url_for('training.export_excel') }}" class="btn btn-outline btn-sm" style="width:100%;text-align:center;display:block;">📊 교육훈련 이수 대장 Excel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

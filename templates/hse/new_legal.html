@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}법규 등록{% endblock %}
+{% block breadcrumb %}⚖️ 환경·안전 › 법규 등록부 › 법규 등록{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">법규·규제 등록 <span>New Legal Register Entry</span></div>
+  <a href="{{ url_for('hse.legal') }}" class="btn btn-outline">← 목록으로</a>
+</div>
+
+<div class="card">
+  <div class="card-header">⚖️ 법규 정보 입력 (등록번호는 자동 채번됩니다)</div>
+  <div class="card-body">
+    <form method="POST">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">ISO 규격 <span style="color:var(--danger)">*</span></label>
+          <select name="iso_standard" class="form-control" required>
+            <option value="">선택하세요</option>
+            <option value="ISO14001">ISO 14001 (환경경영)</option>
+            <option value="ISO45001">ISO 45001 (안전보건경영)</option>
+            <option value="통합">통합 (14001+45001)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">법규 유형 <span style="color:var(--danger)">*</span></label>
+          <select name="law_type" class="form-control" required>
+            <option value="">선택하세요</option>
+            <option value="법률">법률</option>
+            <option value="시행령">시행령</option>
+            <option value="시행규칙">시행규칙</option>
+            <option value="고시">고시</option>
+            <option value="기준·지침">기준·지침</option>
+            <option value="국제협약">국제협약</option>
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">법규명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="law_name" class="form-control" required
+                 placeholder="예: 산업안전보건법, 환경부 대기환경보전법">
+        </div>
+        <div class="form-group">
+          <label class="form-label">해당 조항</label>
+          <input type="text" name="applicable_clause" class="form-control"
+                 placeholder="예: 제14조 제1항, 별표 1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">제·개정일</label>
+          <input type="date" name="enacted_date" class="form-control">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">적용 부서</label>
+          <input type="text" name="applicable_dept" class="form-control"
+                 placeholder="예: 제조팀, 경영지원팀 / 전사">
+        </div>
+        <div class="form-group">
+          <label class="form-label">준수 현황 <span style="color:var(--danger)">*</span></label>
+          <select name="compliance_status" class="form-control" required>
+            <option value="compliant">✓ 준수</option>
+            <option value="partial">△ 부분준수</option>
+            <option value="non_compliant">✗ 미준수</option>
+            <option value="na">— 해당없음</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">소관 부서</label>
+          <select name="department_id" class="form-control">
+            <option value="">선택하세요</option>
+            {% for dept in departments %}
+            <option value="{{ dept.id }}">{{ dept.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">최종 검토일</label>
+          <input type="date" name="last_review_date" class="form-control"
+                 value="{{ today.strftime('%Y-%m-%d') if today else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">차기 검토일</label>
+          <input type="date" name="next_review_date" class="form-control">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">준수 방법 및 비고</label>
+          <textarea name="compliance_note" class="form-control" rows="4"
+                    placeholder="해당 법규의 준수 방법, 관리 담당자, 특이사항 등을 기재하세요."></textarea>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('hse.legal') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">✓ 법규 등록</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}{{ g.grievance_number }}{% endblock %}
+{% block breadcrumb %}🗣️ 근로자 고충처리 › {{ g.grievance_number }}{% endblock %}
+
+{% block content %}
+{% set overdue = g.due_date and g.due_date < today and g.status in ['open','investigating'] %}
+
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <span style="font-family:monospace;font-size:0.8rem;color:var(--accent);background:var(--bg-base);padding:3px 10px;border-radius:4px;">{{ g.grievance_number }}</span>
+      <span class="status-badge
+        {% if g.status=='resolved' %}status-active
+        {% elif g.status=='closed' %}status-obsolete
+        {% elif g.status=='investigating' %}status-review
+        {% else %}status-draft{% endif %}">{{ status_kr.get(g.status, g.status) }}</span>
+      {% if g.is_anonymous %}<span style="background:#1e293b;color:white;font-size:0.7rem;padding:2px 8px;border-radius:10px;">🕶️ 익명</span>{% endif %}
+    </div>
+    <div class="page-title">{{ g.title }}</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.is_admin() %}
+    <form method="POST" action="{{ url_for('grievance.delete', grievance_id=g.id) }}" style="display:inline;"
+          onsubmit="return confirm('고충처리 기록을 삭제하시겠습니까? 되돌릴 수 없습니다. (관리자 전용)');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('grievance.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:20px;">
+
+  <!-- 좌: 고충 내용 -->
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📋 고충 내용</div>
+      <div class="card-body">
+        <table style="width:100%;font-size:0.85rem;margin-bottom:14px;">
+          <tr><td style="padding:5px 0;color:var(--text-muted);width:90px;">접수일</td><td>{{ g.receipt_date }}</td></tr>
+          <tr><td style="padding:5px 0;color:var(--text-muted);">분류</td><td>{{ g.category }}</td></tr>
+          <tr><td style="padding:5px 0;color:var(--text-muted);">심각도</td><td>{{ severity_kr.get(g.severity, g.severity) }}</td></tr>
+          <tr><td style="padding:5px 0;color:var(--text-muted);">제기자</td>
+            <td>{% if g.is_anonymous %}<span style="color:var(--text-muted);">🕶️ 익명 (비공개)</span>
+                {% else %}{{ g.reporter_name }}{% if g.department %} · {{ g.department.name }}{% endif %}{% endif %}</td></tr>
+          {% if g.contact_info %}<tr><td style="padding:5px 0;color:var(--text-muted);">회신 연락처</td><td>{{ g.contact_info }}</td></tr>{% endif %}
+        </table>
+        <div style="background:var(--bg-base);border-radius:8px;padding:14px;white-space:pre-wrap;line-height:1.7;font-size:0.9rem;">{{ g.content }}</div>
+      </div>
+    </div>
+
+    {% if g.result %}
+    <div class="card" style="border:1px solid #86efac;">
+      <div class="card-header" style="background:#f0fdf4;color:#166534;">✅ 처리 결과 회신</div>
+      <div class="card-body" style="white-space:pre-wrap;line-height:1.7;font-size:0.9rem;">{{ g.result }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 우: 처리 (처리권자만) -->
+  <div>
+    {% if can_handle %}
+    <div class="card">
+      <div class="card-header">🛠️ 고충 처리</div>
+      <div class="card-body">
+        <form method="POST">
+          <div style="margin-bottom:12px;">
+            <label class="form-label">상태</label>
+            <select name="status" class="form-control">
+              {% for k, v in status_kr.items() %}
+              <option value="{{ k }}" {% if g.status==k %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">처리 담당자</label>
+            <select name="handler_id" class="form-control">
+              <option value="">-- 선택 --</option>
+              {% for h in handlers %}
+              <option value="{{ h.id }}" {% if g.handler_id==h.id %}selected{% endif %}>{{ h.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">처리 기한</label>
+            <input type="date" name="due_date" class="form-control" value="{{ g.due_date or '' }}">
+            {% if overdue %}<div style="color:var(--danger);font-size:0.72rem;margin-top:2px;">⚠️ 기한 초과</div>{% endif %}
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">조사/확인 내용</label>
+            <textarea name="investigation" class="form-control" rows="3">{{ g.investigation or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">조치 내용</label>
+            <textarea name="action_taken" class="form-control" rows="3">{{ g.action_taken or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">처리 결과 회신 <span style="font-size:0.72rem;color:var(--text-muted)">(제기자 열람용)</span></label>
+            <textarea name="result" class="form-control" rows="3">{{ g.result or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label class="form-label">처리 만족도 <span style="font-size:0.72rem;color:var(--text-muted)">(선택, 1~5)</span></label>
+            <select name="satisfaction" class="form-control">
+              <option value="">-</option>
+              {% for s in [5,4,3,2,1] %}<option value="{{ s }}" {% if g.satisfaction==s %}selected{% endif %}>{{ s }}점</option>{% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">💾 처리 내용 저장</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-header">📌 처리 현황</div>
+      <div class="card-body" style="font-size:0.88rem;line-height:2;">
+        <div>상태: <strong>{{ status_kr.get(g.status, g.status) }}</strong></div>
+        {% if g.resolved_date %}<div>처리완료일: {{ g.resolved_date }}</div>{% endif %}
+        <div style="margin-top:10px;color:var(--text-muted);font-size:0.8rem;">
+          담당자가 비밀유지 원칙에 따라 처리 중입니다.
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

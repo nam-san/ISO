@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}법정점검 일정{% endblock %}
+{% block breadcrumb %}🗓️ 법정점검 주기관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">법정 정기점검·측정 관리 <span>Legal Inspection Schedule</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      소방·작업환경측정·건강진단·대기/수질·전기/가스 등 법정 주기 점검의 차기 도래일 추적 및 알림
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('inspection.export_excel') }}" class="btn btn-success">📊 일정표 Excel</a>
+    <a href="{{ url_for('inspection.history') }}" class="btn btn-outline">📜 점검 이력</a>
+    {% if current_user.is_admin() %}
+    <a href="{{ url_for('inspection.types') }}" class="btn btn-outline">⚙️ 항목·주기 관리</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 알림 요약 -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
+  <div class="card" style="padding:16px 20px;background:{% if overdue>0 %}#fef2f2{% else %}#f0fdf4{% endif %};border-left:4px solid {% if overdue>0 %}var(--danger){% else %}var(--success){% endif %};">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:2rem;">{% if overdue>0 %}🚨{% else %}✅{% endif %}</span>
+      <div>
+        <div style="font-size:1.6rem;font-weight:800;color:{% if overdue>0 %}var(--danger){% else %}var(--success){% endif %};">{{ overdue }}건</div>
+        <div style="font-size:0.82rem;color:var(--text-secondary);">기한 초과 — 즉시 점검 필요</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="padding:16px 20px;background:{% if soon>0 %}#fffbeb{% else %}#f8fafc{% endif %};border-left:4px solid {% if soon>0 %}var(--warning){% else %}var(--border){% endif %};">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:2rem;">⏳</span>
+      <div>
+        <div style="font-size:1.6rem;font-weight:800;color:{% if soon>0 %}var(--warning){% else %}var(--text-muted){% endif %};">{{ soon }}건</div>
+        <div style="font-size:0.82rem;color:var(--text-secondary);">도래 임박 — 점검일이 다가옴</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 분류 필터 -->
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
+  <a href="{{ url_for('inspection.index') }}" class="btn btn-sm {% if not cat %}btn-primary{% else %}btn-outline{% endif %}">전체</a>
+  {% for c in categories %}
+  <a href="{{ url_for('inspection.index', category=c) }}" class="btn btn-sm {% if cat==c %}btn-primary{% else %}btn-outline{% endif %}">{{ icons[c] }} {{ c }}</a>
+  {% endfor %}
+</div>
+
+<!-- 일정 보드 -->
+<div class="card">
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:90px;">분류</th>
+          <th>점검 항목</th>
+          <th style="width:70px;">주기</th>
+          <th style="width:110px;">최근 실시일</th>
+          <th style="width:110px;">차기 예정일</th>
+          <th style="width:100px;">상태</th>
+          <th style="width:90px;">실시</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for b in board %}
+      {% set t = b.t %}
+      {% set rowbg = {'overdue':'#fff5f5','soon':'#fffbeb','ok':'transparent','unset':'#f9fafb'} %}
+      <tr style="background:{{ rowbg[b.status] }};">
+        <td><span style="font-size:0.78rem;">{{ icons.get(t.category,'') }} {{ t.category }}</span></td>
+        <td>
+          <div style="font-weight:600;">{{ t.name }}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);">{{ t.legal_basis }}</div>
+        </td>
+        <td style="text-align:center;font-size:0.8rem;">{{ t.cycle_months }}개월</td>
+        <td class="date-cell">{{ t.last_performed_date or '미실시' }}</td>
+        <td class="date-cell" style="font-weight:600;">{{ t.next_due_date or '-' }}</td>
+        <td>
+          {% if b.status == 'overdue' %}
+            <span class="status-badge status-danger">🚨 D+{{ -b.days }} 초과</span>
+          {% elif b.status == 'soon' %}
+            <span class="status-badge" style="background:#fef9c3;color:#854d0e;">⏳ D-{{ b.days }}</span>
+          {% elif b.status == 'ok' %}
+            <span class="status-badge status-active">정상 (D-{{ b.days }})</span>
+          {% else %}
+            <span class="status-badge status-draft">미실시</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if current_user.has_edit() %}
+          <a href="{{ url_for('inspection.perform', type_id=t.id) }}" class="btn btn-primary btn-sm">＋ 점검</a>
+          {% else %}
+          <a href="{{ url_for('inspection.history', type_id=t.id) }}" class="btn btn-outline btn-sm">이력</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-cell">등록된 점검 항목이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>.status-badge.status-danger{background:#fee2e2;color:#991b1b;}</style>
+{% endblock %}

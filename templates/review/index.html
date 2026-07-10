@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}경영검토{% endblock %}
+{% block breadcrumb %}📋 경영검토 (Management Review){% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">경영검토 <span>Management Review — ISO 9001/14001/45001 §9.3</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      최고경영자가 주관하는 주기적 경영검토 — 인풋 집계·안건 작성·실행계획 추적·승인까지 통합 관리
+    </p>
+  </div>
+  {% if current_user.is_manager() %}
+  <a href="{{ url_for('review.new') }}" class="btn btn-primary">＋ 경영검토 개최</a>
+  {% endif %}
+</div>
+
+{% if reviews %}
+<div style="display:grid;gap:16px;">
+  {% for mr in reviews %}
+  {% set actions = mr.actions.all() %}
+  {% set completed = actions|selectattr('status','equalto','completed')|list|length %}
+  {% set overdue   = actions|selectattr('status','equalto','overdue')|list|length %}
+  {% set progress  = (completed / actions|length * 100)|int if actions else 0 %}
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <!-- 상단 컬러바 -->
+    <div style="height:4px;background:{% if mr.status=='approved' %}var(--success){% elif mr.status=='in_review' %}var(--warning){% else %}var(--text-muted){% endif %};"></div>
+
+    <div style="padding:20px 24px;display:flex;gap:20px;align-items:flex-start;">
+      <!-- 좌: 기본 정보 -->
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-family:monospace;font-size:0.78rem;color:var(--accent);background:var(--bg-base);padding:2px 8px;border-radius:4px;">{{ mr.review_number }}</span>
+          <span class="status-badge
+            {% if mr.status == 'approved' %}status-active
+            {% elif mr.status == 'in_review' %}status-review
+            {% else %}status-draft{% endif %}">
+            {{ {'draft':'작성중','in_review':'검토중','approved':'승인완료'}.get(mr.status, mr.status) }}
+          </span>
+          {% if overdue > 0 %}
+          <span style="background:#fee2e2;color:#991b1b;font-size:0.72rem;padding:2px 8px;border-radius:10px;font-weight:600;">⚠️ 기한초과 {{ overdue }}건</span>
+          {% endif %}
+        </div>
+        <div style="font-size:1.05rem;font-weight:700;margin-bottom:4px;">
+          <a href="{{ url_for('review.detail', review_id=mr.id) }}" style="color:var(--text-primary);">{{ mr.title }}</a>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-muted);">
+          검토기간: {{ mr.period_start }} ~ {{ mr.period_end }} &nbsp;|&nbsp;
+          개최일: <strong>{{ mr.review_date }}</strong>
+          {% if mr.chairman %} &nbsp;|&nbsp; 의장: {{ mr.chairman.name }}{% endif %}
+          {% if mr.venue %} &nbsp;|&nbsp; 장소: {{ mr.venue }}{% endif %}
+        </div>
+      </div>
+
+      <!-- 우: 실행계획 현황 -->
+      <div style="min-width:200px;text-align:right;">
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;">
+          실행계획 {{ completed }}/{{ actions|length }}건 완료
+        </div>
+        <div style="background:var(--bg-base);border-radius:6px;height:8px;overflow:hidden;">
+          <div style="width:{{ progress }}%;height:100%;background:{% if progress==100 %}var(--success){% elif progress>=50 %}var(--warning){% else %}var(--accent){% endif %};transition:width 0.5s;"></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:6px;justify-content:flex-end;">
+          <a href="{{ url_for('review.detail', review_id=mr.id) }}" class="btn btn-outline btn-sm">상세 보기</a>
+          <a href="{{ url_for('review.export_excel', review_id=mr.id) }}" class="btn btn-success btn-sm">📊 Excel</a>
+        </div>
+      </div>
+    </div>
+
+    {% if mr.approved_by %}
+    <div style="padding:8px 24px;background:var(--bg-base);border-top:1px solid var(--border);font-size:0.78rem;color:var(--text-muted);">
+      ✅ {{ mr.approved_at.strftime('%Y-%m-%d') }} 승인 — {{ mr.approved_by.name }}
+      {% if mr.approval_comment %} · "{{ mr.approval_comment }}"{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="card" style="text-align:center;padding:60px;">
+  <div style="font-size:3rem;margin-bottom:12px;">📋</div>
+  <div style="font-size:1.1rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">등록된 경영검토가 없습니다</div>
+  <p style="color:var(--text-muted);margin-bottom:20px;">ISO 표준은 최소 연 1회 이상 경영검토 실시를 요구합니다.</p>
+  {% if current_user.is_manager() %}
+  <a href="{{ url_for('review.new') }}" class="btn btn-primary">＋ 첫 경영검토 개최하기</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

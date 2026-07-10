@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}개선조치{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 관리 › 위험성 개선조치{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">위험성 개선조치 <span>Risk Improvement</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      위험요인에 대한 개선 대책 수립 → 개선 후 결과 입력 → 승인까지의 이력을 관리합니다.
+    </p>
+  </div>
+  <a href="{{ url_for('hse.risk') }}" class="btn btn-outline">← 위험성평가</a>
+</div>
+
+<!-- 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+  {% for label, key, color in [('전체','all','var(--primary)'),('개선중','in_progress','#d97706'),('승인대기','completed','#2563eb'),('승인완료','approved','#16a34a')] %}
+  <div class="card" style="text-align:center;padding:18px;">
+    <div style="font-size:1.7rem;font-weight:800;color:{{ color }};">
+      {{ (stats.in_progress + stats.completed + stats.approved) if key=='all' else stats[key] }}
+    </div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 상태 필터 -->
+<div style="margin-bottom:16px;display:flex;gap:8px;">
+  <a href="{{ url_for('improvement.index') }}" class="btn btn-sm {% if not status %}btn-primary{% else %}btn-secondary{% endif %}">전체</a>
+  <a href="{{ url_for('improvement.index', status='in_progress') }}" class="btn btn-sm {% if status=='in_progress' %}btn-primary{% else %}btn-secondary{% endif %}">개선중</a>
+  <a href="{{ url_for('improvement.index', status='completed') }}" class="btn btn-sm {% if status=='completed' %}btn-primary{% else %}btn-secondary{% endif %}">승인대기</a>
+  <a href="{{ url_for('improvement.index', status='approved') }}" class="btn btn-sm {% if status=='approved' %}btn-primary{% else %}btn-secondary{% endif %}">승인완료</a>
+</div>
+
+<div class="card">
+  <div class="card-header">개선조치 목록 (총 {{ items|length }}건)</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>평가번호</th><th>공정 / 구분</th><th>위험요인</th>
+          <th>개선 전</th><th>개선 후</th><th>담당</th><th>목표일</th><th>상태</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% set grade_cls = {'상':'obsolete','중':'review','하':'draft'} %}
+      {% set status_cls = {'in_progress':'review','completed':'active','approved':'approved'} %}
+      {% for it in items %}
+      <tr style="cursor:pointer;" onclick="location.href='{{ url_for('improvement.detail', imp_id=it.id) }}'">
+        <td style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:700;">
+          {{ it.risk.risk_number if it.risk else '-' }}
+          <div style="font-size:0.68rem;color:var(--text-muted);font-weight:400;">{{ it.improvement_number }}</div>
+        </td>
+        <td style="font-size:0.82rem;">{{ it.work_area or '-' }}<br><span style="color:var(--text-muted);">{{ it.work_type or '' }}</span></td>
+        <td style="font-weight:600;max-width:260px;">{{ it.hazard }}</td>
+        <td><span class="status-badge status-{{ grade_cls.get(it.before_grade,'draft') }}">{{ it.before_grade }} {{ it.before_level }}</span></td>
+        <td>
+          {% if it.after_level %}<span class="status-badge status-{{ grade_cls.get(it.after_grade,'draft') }}">{{ it.after_grade }} {{ it.after_level }}</span>
+          {% else %}<span style="color:var(--text-muted);font-size:0.78rem;">미입력</span>{% endif %}
+        </td>
+        <td>{{ it.responsible.name if it.responsible else '-' }}</td>
+        <td class="date-cell">{{ it.due_date or '-' }}</td>
+        <td><span class="status-badge status-{{ status_cls.get(it.status,'draft') }}">{{ status_kr.get(it.status, it.status) }}</span></td>
+        <td><a href="{{ url_for('improvement.detail', imp_id=it.id) }}" class="btn btn-outline btn-sm">상세</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">🛠️ 등록된 개선조치가 없습니다.<br>위험성평가 목록의 <strong>개선</strong> 버튼으로 시작하세요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

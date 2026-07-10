@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}고충 제기{% endblock %}
+{% block breadcrumb %}🗣️ 근로자 고충처리 › 고충 제기{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">고충 제기 <span>Submit Grievance</span></div>
+  <a href="{{ url_for('grievance.index') }}" class="btn btn-outline">← 목록</a>
+</div>
+
+<div class="card" style="max-width:720px;">
+  <div class="card-header">📝 고충·불만 내용</div>
+  <div class="card-body">
+    <div class="card" style="margin-bottom:18px;background:#f0f9ff;border-left:4px solid var(--accent);">
+      <div style="padding:12px 16px;font-size:0.82rem;color:var(--text-secondary);line-height:1.7;">
+        🔒 제기하신 고충은 <strong>비밀이 보장</strong>되며 처리 담당자만 열람합니다.<br>
+        🕶️ <strong>익명 제기</strong>를 선택하면 신원 정보가 시스템에 저장되지 않습니다. (단, 처리 결과 개별 회신은 불가)
+      </div>
+    </div>
+
+    <form method="POST">
+      <!-- 익명 선택 -->
+      <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:18px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" name="is_anonymous" id="anonChk" style="width:18px;height:18px;"
+                 onchange="document.getElementById('contactBox').style.display=this.checked?'none':'block'">
+          <span style="font-weight:600;">🕶️ 익명으로 제기하기</span>
+          <span style="font-size:0.78rem;color:var(--text-muted);">(신원 비공개 — 추적·개별회신 불가)</span>
+        </label>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label class="form-label">분류 <span style="color:var(--danger)">*</span></label>
+          <select name="category" class="form-control" required>
+            {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">심각도</label>
+          <select name="severity" class="form-control">
+            <option value="normal">보통</option>
+            <option value="high">높음 (긴급)</option>
+            <option value="low">낮음</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">접수일</label>
+          <input type="date" name="receipt_date" class="form-control" value="{{ today }}">
+        </div>
+        <div id="contactBox">
+          <label class="form-label">회신 연락처 <span style="font-size:0.72rem;color:var(--text-muted)">(선택)</span></label>
+          <input type="text" name="contact_info" class="form-control" placeholder="내선/이메일 등">
+        </div>
+
+        <div style="grid-column:1/-1;">
+          <label class="form-label">제목 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required placeholder="고충 제목">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">내용 <span style="color:var(--danger)">*</span></label>
+          <textarea name="content" class="form-control" rows="7" required
+            placeholder="고충·불만 내용을 구체적으로 작성해 주세요. (일시, 장소, 관련자, 경위 등)"></textarea>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end;">
+        <a href="{{ url_for('grievance.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary">고충 제출</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

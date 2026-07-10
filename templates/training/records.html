@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}교육훈련 실행이력{% endblock %}
+{% block breadcrumb %}🎓 교육훈련 › 실행이력 전체{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">교육훈련 실행이력 <span>Training Records</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ year }}년 실시된 교육훈련 이수 기록 전체 목록입니다.</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('training.export_excel', year=year) }}" class="btn btn-success">📊 Excel 대장</a>
+    <a href="{{ url_for('training.index', year=year) }}" class="btn btn-outline">← 연간 계획</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:160px;">
+        <label class="form-label">검색어</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="교육명 / 교육기관">
+      </div>
+      <div>
+        <label class="form-label">연도</label>
+        <select name="year" class="form-control">
+          {% for y in years %}<option value="{{ y }}" {% if y==year %}selected{% endif %}>{{ y }}년</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('training.records') }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">총 <strong>{{ trainings|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>교육번호</th><th>교육명</th><th>연계 계획</th><th>유형</th><th>교육일</th><th>교육기관</th><th style="text-align:center;">시간</th><th>부서</th><th style="text-align:center;">참석</th></tr>
+      </thead>
+      <tbody>
+      {% for t in trainings %}
+      <tr style="cursor:pointer;" onclick="location.href='{{ url_for('training.detail', tid=t.id) }}'">
+        <td style="font-size:0.78rem;color:var(--text-muted);">{{ t.training_number }}</td>
+        <td style="font-weight:600;">{{ t.title }}</td>
+        <td style="font-size:0.78rem;color:var(--text-secondary);">{{ t.plan.title if t.plan else '-' }}</td>
+        <td>
+          {% if t.training_type == '법정의무' %}<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;">법정의무</span>
+          {% else %}<span style="font-size:0.78rem;color:var(--text-secondary);">{{ t.training_type or '-' }}</span>{% endif %}
+        </td>
+        <td class="date-cell">{{ t.training_date }}</td>
+        <td>{{ t.institution or '-' }}</td>
+        <td style="text-align:center;">{{ t.hours or '-' }}</td>
+        <td>{{ t.department.name if t.department else '-' }}</td>
+        <td style="text-align:center;">{{ t.attendee_total }}명{% if t.attendee_mode == 'company' %} <span style="font-size:0.7rem;color:var(--text-muted);">(전사)</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">🎓 {{ year }}년 실행이력이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

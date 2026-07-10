@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.doc_number }} 상세{% endblock %}
+{% block breadcrumb %}📁 기준문서 관리 › {{ doc.doc_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ doc.doc_number }} <span>{{ doc.title }}</span></div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if doc.status == 'draft' and current_user.has_edit() and (current_user.is_admin() or doc.created_by_id == current_user.id) %}
+    <a href="{{ url_for('documents.edit', doc_id=doc.id) }}" class="btn btn-primary">✏️ 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or (doc.created_by_id == current_user.id and doc.status == 'draft') %}
+    <form method="POST" action="{{ url_for('documents.delete', doc_id=doc.id) }}" style="display:inline;"
+          onsubmit="return confirm('문서를 삭제하시겠습니까? 버전·결재 이력도 함께 삭제되며 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('documents.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+{% if doc.status == 'obsolete' %}
+<div class="info-box" style="background-color:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:15px; border-radius:8px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+  <span style="font-size:1.8rem;">⚠️</span>
+  <div>
+    <strong style="font-size:1rem; display:block; margin-bottom:4px;">[폐지 문서 알림] 본 표준서는 공식적으로 폐지된 구문서입니다.</strong>
+    <span style="font-size:0.82rem;">사내 표준 업무에 사용할 수 없으며, 참고용으로만 활용하시기 바랍니다. (구문서 관리 지침에 의거하여 폐지 후 1년간 의무 보존됩니다.)</span>
+  </div>
+</div>
+{% endif %}
+
+<!-- 문서 상세: 좌(본문) / 우(기본정보·상태·첨부) -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start;">
+
+  <!-- ══════ 좌측: 문서 본문 ══════ -->
+  <div>
+    <div class="card">
+      <div class="card-header">📄 문서 본문</div>
+      {% if file_url and doc.file_name and doc.file_name.lower().endswith('.pdf') %}
+      <div class="card-body" style="padding:0; height:820px; overflow:hidden;">
+        <iframe src="{{ file_url }}" style="width:100%; height:100%; border:none;"></iframe>
+      </div>
+      {% elif file_url %}
+      <div class="card-body" style="text-align:center;padding:60px 24px;">
+        <div style="font-size:3rem;margin-bottom:12px;">📎</div>
+        <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">{{ doc.file_name }}</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;">PDF가 아닌 문서는 미리보기가 지원되지 않습니다. 우측에서 파일을 다운로드해 확인하세요.</p>
+        <a href="{{ file_url }}" class="btn btn-outline" download>⬇️ 파일 다운로드</a>
+      </div>
+      {% else %}
+      <div class="card-body" style="text-align:center;padding:60px 24px;color:var(--text-muted);">
+        <div style="font-size:3rem;margin-bottom:12px;">📄</div>
+        <p style="font-size:0.88rem;">첨부된 본문 파일이 없습니다.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 버전 이력 (구문서 관리 포함) -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">🔄 구문서 및 버전 이력 (폐지후 1년 보존)</div>
+      <div class="card-body" style="padding:0;">
+        {% if versions %}
+        <table class="data-table">
+          <thead><tr><th>버전</th><th>개정사유/폐지일</th><th>개정자</th><th>구문서 첨부 및 보존기한</th></tr></thead>
+          <tbody>
+          {% for v in versions %}
+          <tr style="background-color: #fffaf0;">
+            <td><span class="badge badge-warning" style="background-color:#d97706;color:white;font-size:0.75rem;">구문서 v{{ v.version }}</span></td>
+            <td>
+              <div style="font-weight:500; font-size:0.85rem;">{{ v.change_reason or '개정 발행' }}</div>
+              <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">폐지일: {{ v.changed_at.strftime('%Y-%m-%d') }}</div>
+            </td>
+            <td>{{ v.changed_by.name if v.changed_by else '-' }}</td>
+            <td>
+              {% if v.file_path %}
+                {% set v_filename = v.file_path.split('\\')[-1].split('/')[-1] %}
+                <a href="{{ url_for('static', filename='uploads/' ~ v_filename) }}" class="btn btn-sm btn-outline" style="padding: 2px 6px; font-size: 0.72rem; border-color: #d97706; color: #d97706; display:inline-block;" download>⬇️ 구문서 다운로드</a>
+              {% else %}
+                <span class="text-muted" style="font-size:0.72rem;">파일 없음</span>
+              {% endif %}
+              <div style="font-size:0.7rem;color:#b45309;margin-top:4px;font-weight:500;">
+                ⏳ 보존만료: {{ v.changed_at.year + 1 }}-{{ v.changed_at.strftime('%m-%d') }} (폐지후 1년)
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding:24px;"><p>버전 이력(구문서)이 없습니다.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ 우측: 기본정보 · 상태 · 첨부 ══════ -->
+  <div>
+    <!-- ① 문서 기본 정보 (+ 합의현황 + 개정본 발행) -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📋 문서 기본 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(label, value) %}
+          <tr>
+            <td style="padding:9px 0;width:96px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+            <td style="padding:9px 0;font-size:0.86rem;color:var(--text-primary);border-bottom:1px solid var(--border-light);">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('문서번호', doc.doc_number) }}
+          {{ row('문서명', doc.title) }}
+          {{ row('문서유형', doc.doc_type) }}
+          <tr>
+            <td style="padding:9px 0;width:96px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">ISO 규격</td>
+            <td style="padding:9px 0;border-bottom:1px solid var(--border-light);">
+              {% if doc.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">ISO 9001</span>
+              {% elif doc.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">ISO 14001</span>
+              {% elif doc.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">ISO 45001</span>
+              {% else %}<span>{{ doc.iso_standard }}</span>{% endif %}
+            </td>
+          </tr>
+          {{ row('버전', 'v' + doc.version) }}
+          {{ row('소관부서', doc.department.name if doc.department else '-') }}
+          {{ row('작성자', doc.created_by.name if doc.created_by else '-') }}
+          {{ row('승인자', doc.approved_by.name if doc.approved_by else '미승인') }}
+          {{ row('시행일', doc.effective_date or '-') }}
+          {{ row('등록일', doc.created_at.strftime('%Y-%m-%d %H:%M')) }}
+        </table>
+        {% if doc.description %}
+        <div style="margin-top:14px;padding:12px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          <div style="font-size:0.76rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">문서 개요</div>
+          <div style="font-size:0.86rem;">{{ doc.description }}</div>
+        </div>
+        {% endif %}
+
+        <!-- 관계부서 합의 현황 (기본정보 내 포함) -->
+        {% if concur_counts.total > 0 %}
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:0.82rem;font-weight:700;">🤝 관계부서 합의 현황</span>
+            <span style="font-size:0.72rem;color:var(--text-muted);">동의 {{ concur_counts.agreed }}/{{ concur_counts.total }}{% if concur_counts.disagreed %} · 반려 {{ concur_counts.disagreed }}{% endif %}</span>
+          </div>
+          {% for c in concurrences %}
+          <div style="padding:8px 0;border-bottom:1px solid var(--border-light);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.82rem;font-weight:600;">{{ c.department.name }}</span>
+              <span class="status-badge status-{{ 'active' if c.status=='agreed' else 'obsolete' if c.status=='disagreed' else 'draft' }}">
+                {{ {'agreed':'동의','disagreed':'반려','pending':'대기'}[c.status] }}
+              </span>
+            </div>
+            {% if c.acted_by %}<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">{{ c.acted_by.name }} · {{ c.acted_at.strftime('%Y-%m-%d %H:%M') }}</div>{% endif %}
+            {% if c.comment %}<div style="font-size:0.76rem;margin-top:3px;color:var(--text-secondary);">“{{ c.comment }}”</div>{% endif %}
+            {% if doc.status == 'review' and c.status == 'pending' and c.can_act %}
+            <form method="POST" action="{{ url_for('documents.concur', doc_id=doc.id) }}" style="margin-top:8px;">
+              <input type="hidden" name="department_id" value="{{ c.department_id }}">
+              <input type="text" name="comment" class="form-control" placeholder="합의 의견 (선택)" style="font-size:0.78rem;margin-bottom:6px;">
+              <div style="display:flex;gap:6px;">
+                <button type="submit" name="action" value="agree" class="btn btn-success btn-sm" style="flex:1;">동의</button>
+                <button type="submit" name="action" value="disagree" class="btn btn-danger btn-sm" style="flex:1;" onclick="return confirm('반려하시겠습니까?')">반려</button>
+              </div>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 개정본 발행 (기본정보 하단, 배포중 문서) -->
+        {% if doc.status == 'active' %}
+        <a href="{{ url_for('documents.revision', doc_id=doc.id) }}" class="btn btn-primary" style="width:100%;margin-top:16px;background-color:var(--iso-q);border-color:var(--iso-q);">🔄 문서 개정본 발행</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 결재 상신 · 관계부서 합의 지정 (초안 + 작성자/관리자) -->
+    {% if doc.status == 'draft' and (doc.created_by_id == current_user.id or current_user.is_admin()) %}
+    <div class="card" style="margin-bottom:16px;border:2px solid var(--accent);">
+      <div class="card-header">📤 결재 상신 · 관계부서 합의 지정</div>
+      <div class="card-body">
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">
+          관련 기준의 합의가 필요한 부서를 선택하세요. 선택한 부서가 <strong>모두 동의해야</strong> 최종 승인됩니다. (미선택 시 합의 없이 바로 결재)
+        </p>
+        {% set assigned = concurrences|map(attribute='department_id')|list %}
+        <form method="POST" action="{{ url_for('documents.submit_approval', doc_id=doc.id) }}"
+              onsubmit="return confirm('결재 상신하시겠습니까?')">
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+            {% for d in concur_dept_options %}
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;">
+              <input type="checkbox" name="concur_depts" value="{{ d.id }}"
+                     {% if d.id in assigned %}checked{% endif %} style="width:16px;height:16px;">
+              {{ d.name }}
+            </label>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">📤 결재 상신</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 최종 결재 처리 (승인 권한자) -->
+    {% if current_user.has_approve() and doc.status == 'review' %}
+    <div class="card" style="margin-bottom:16px;border:2px solid var(--warning);">
+      <div class="card-header" style="background:#fffbeb;">🔔 최종 결재 처리</div>
+      <div class="card-body">
+        {% if not concur_can_final %}
+        <div style="font-size:0.8rem;color:#a16207;background:#fef9c3;padding:10px;border-radius:6px;margin-bottom:10px;">
+          ⏳ 관계부서 합의 진행 중 (동의 {{ concur_counts.agreed }}/{{ concur_counts.total }}{% if concur_counts.disagreed %}, 반려 {{ concur_counts.disagreed }}{% endif %}) — 모든 부서가 동의해야 승인할 수 있습니다.
+        </div>
+        {% endif %}
+        <form method="POST" action="{{ url_for('documents.approve', doc_id=doc.id) }}">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">결재 의견</label>
+            <textarea name="comment" class="form-control" rows="3" placeholder="검토 의견을 입력하세요 (선택)"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="submit" name="action" value="approve" class="btn btn-success" style="flex:1;"
+                    {% if not concur_can_final %}disabled title="관계부서 합의 완료 후 승인 가능"{% endif %}>✅ 승인</button>
+            <button type="submit" name="action" value="reject" class="btn btn-danger" style="flex:1;" onclick="return confirm('반려하시겠습니까?')">❌ 반려</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 합의 반려 시 작성자 되돌리기 -->
+    {% if doc.status == 'review' and concur_counts.disagreed > 0 and (doc.created_by_id == current_user.id or current_user.is_admin()) %}
+    <div class="card" style="margin-bottom:16px;border:1px solid var(--danger);">
+      <div class="card-body">
+        <p style="font-size:0.8rem;color:var(--danger);margin-bottom:8px;">⚠️ 관계부서 반려 의견이 있습니다. 수정 후 재상신하세요.</p>
+        <form method="POST" action="{{ url_for('documents.reopen', doc_id=doc.id) }}">
+          <button type="submit" class="btn btn-outline btn-sm" style="width:100%;">↩️ 작성중으로 되돌리기</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ② 문서 상태 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📊 문서 상태</div>
+      <div class="card-body" style="text-align:center;">
+        <div style="font-size:2.4rem;margin-bottom:6px;">
+          {% if doc.status == 'draft' %}📝
+          {% elif doc.status == 'review' %}🔍
+          {% elif doc.status == 'approved' %}✅
+          {% elif doc.status == 'active' %}📢
+          {% else %}🗂️{% endif %}
+        </div>
+        <span class="status-badge status-{{ doc.status }}" style="font-size:0.9rem;padding:6px 16px;">
+          {{ {'draft':'초안 작성중','review':'검토/결재 중','approved':'승인 완료','active':'배포 중','obsolete':'폐기됨'}[doc.status] or doc.status }}
+        </span>
+        <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px;">
+          {% for step_name, step_status in [('작성', 'done'), ('검토/결재', 'review' if doc.status in ['review'] else ('done' if doc.status in ['approved','active'] else 'pending')), ('배포', 'done' if doc.status == 'active' else 'pending')] %}
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:{% if step_status == 'done' %}var(--iso-e-light){% elif step_status == 'review' %}#fef9c3{% else %}var(--bg-base){% endif %};">
+            <span>{% if step_status == 'done' %}✅{% elif step_status == 'review' %}⏳{% else %}⬜{% endif %}</span>
+            <span style="font-size:0.82rem;font-weight:600;color:{% if step_status == 'done' %}var(--iso-e){% elif step_status == 'review' %}#a16207{% else %}var(--text-muted){% endif %};">{{ step_name }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 첨부파일 다운로드 -->
+    {% if file_url %}
+    <div class="card">
+      <div class="card-header">📎 첨부파일</div>
+      <div class="card-body">
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">{{ doc.file_name }}</p>
+        <a href="{{ file_url }}" class="btn btn-outline" style="width:100%;text-align:center;" download>⬇️ 파일 다운로드</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

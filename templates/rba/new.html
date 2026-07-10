@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}자가진단 실시{% endblock %}
+{% block breadcrumb %}🛡️ 자가진단 체크시트 › 자가진단 실시{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">자가진단 실시 <span>New Self-Assessment</span></div>
+  <a href="{{ url_for('rba.index') }}" class="btn btn-outline">← 목록</a>
+</div>
+
+<div class="card" style="max-width:680px;">
+  <div class="card-header">📝 진단 기본 정보</div>
+  <div class="card-body">
+    <form method="POST">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">진단명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required value="{{ default_title }}">
+        </div>
+        <div>
+          <label class="form-label">고객사</label>
+          <input type="text" name="customer" class="form-control" value="삼성전자">
+        </div>
+        <div>
+          <label class="form-label">진단일 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="assess_date" class="form-control" required value="{{ today }}">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">진단 담당자</label>
+          <select name="assessor_id" class="form-control">
+            <option value="">-- 선택 --</option>
+            {% for u in users %}
+            <option value="{{ u.id }}">{{ u.name }}{% if u.department %} ({{ u.department.name }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:18px;background:var(--bg-base);border:1px solid var(--border);">
+        <div style="padding:14px 18px;font-size:0.83rem;color:var(--text-muted);line-height:1.8;">
+          ℹ️ 생성 시 <strong>RBA 41대 EHS 항목</strong>이 자동으로 평가표에 채워집니다.<br>
+          각 항목별로 판정결과(충족/경미/중대/최우선/해당없음), 증빙 설명, 개선조치를 입력하면
+          <strong>준수율과 위반 건수가 자동 산정</strong>됩니다.
+        </div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end;">
+        <a href="{{ url_for('rba.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary">자가진단 생성 → 평가 시작</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

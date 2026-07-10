@@ -1,0 +1,36 @@
+# 환경 변수 (절대 커밋 금지)
+.env
+.env.*
+!.env.example
+
+# 데이터베이스
+instance/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# 업로드 파일
+static/uploads/*
+!static/uploads/.gitkeep
+
+# 운영체제
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code / AI 도구 관련 (앱과 무관 - 저장소에서 제외)
+.claude/
+.agents/
+docs/superpowers/

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ '사용자 정보 수정' if item else '신규 사용자 등록' }}{% endblock %}
+{% block breadcrumb %}⚙️ 시스템 관리 › 사용자 관리 › {{ '수정' if item else '등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ '사용자 정보 수정' if item else '신규 사용자 등록' }}</div>
+    <div class="page-subtitle">{{ (item.name ~ ' (' ~ item.employee_id ~ ') 계정 정보를 수정합니다.') if item else '시스템을 이용할 임직원의 계정을 생성합니다.' }}</div>
+  </div>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+    <span>↩️ 목록으로</span>
+  </a>
+</div>
+
+<div class="form-container" style="max-width: 600px; margin: 0 auto;">
+  <div class="card-header">
+    <h3 class="card-title">임직원 정보 입력</h3>
+  </div>
+
+  <form action="{{ url_for('admin.edit_user', user_id=item.id) if item else url_for('admin.new_user') }}" method="POST" class="standard-form">
+    <div class="form-group">
+      <label for="employee_id" class="form-label">사번 <span class="text-danger">*</span></label>
+      {% if item %}
+      <input type="text" class="form-control" value="{{ item.employee_id }}" disabled>
+      <p class="text-muted" style="font-size:0.74rem;margin-top:4px;">사번은 로그인 ID로 사용되어 변경할 수 없습니다.</p>
+      {% else %}
+      <input type="text" id="employee_id" name="employee_id" class="form-control" required placeholder="예: NV2401">
+      {% endif %}
+    </div>
+
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+      <div class="form-group">
+        <label for="name" class="form-label">이름 <span class="text-danger">*</span></label>
+        <input type="text" id="name" name="name" class="form-control" required placeholder="홍길동" value="{{ item.name if item else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="position" class="form-label">직위</label>
+        <input type="text" id="position" name="position" class="form-control" placeholder="예: 대리, 과장" value="{{ item.position or '' if item else '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email" class="form-label">이메일</label>
+      <input type="email" id="email" name="email" class="form-control" placeholder="example@nurivoice.com" value="{{ item.email or '' if item else '' }}">
+    </div>
+
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+      <div class="form-group">
+        <label for="department_id" class="form-label">소속 부서 <span class="text-danger">*</span></label>
+        <select id="department_id" name="department_id" class="form-control" required>
+          <option value="">-- 부서 선택 --</option>
+          {% for dept in departments %}
+          <option value="{{ dept.id }}" {% if item and item.department_id == dept.id %}selected{% endif %}>{{ dept.name }} ({{ dept.location }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="role" class="form-label">시스템 권한 <span class="text-danger">*</span></label>
+        {% if item %}
+        <input type="text" class="form-control" value="{{ {'admin':'시스템 관리자','manager':'그룹장/PM/PL','staff':'프로','viewer':'열람 전용'}.get(item.role, item.role) }}" disabled>
+        <p class="text-muted" style="font-size:0.74rem;margin-top:4px;">역할·세부권한은 <a href="{{ url_for('admin.permissions') }}">권한 관리</a>에서 변경하세요.</p>
+        {% else %}
+        <select id="role" name="role" class="form-control" required>
+          <option value="staff" selected>프로 (작성자)</option>
+          <option value="manager">그룹장/PM/PL (경영·부서·파트장)</option>
+          <option value="viewer">열람 전용</option>
+          <option value="admin">시스템 관리자</option>
+        </select>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not item %}
+    <div class="form-group">
+      <label for="password" class="form-label">비밀번호</label>
+      <input type="password" id="password" name="password" class="form-control" placeholder="비어 둘 경우 초기 비밀번호(nurivoice2024!)로 설정됩니다.">
+    </div>
+    {% endif %}
+
+    <div class="form-actions" style="margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+      <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">취소</a>
+      <button type="submit" class="btn btn-primary">{{ '수정 저장' if item else '등록하기' }}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

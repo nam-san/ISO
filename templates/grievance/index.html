@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}근로자 고충처리{% endblock %}
+{% block breadcrumb %}🗣️ 근로자 고충처리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">근로자 고충처리 <span>Worker Grievance</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      {% if can_handle %}
+        접수된 고충을 비밀유지 원칙에 따라 처리합니다. 익명 접수 건의 제기자 정보는 시스템에 저장되지 않습니다.
+      {% else %}
+        고충·불만을 제기하면 담당자가 비밀을 보장하며 처리합니다. 익명 제기도 가능합니다.
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    {% if can_handle %}
+    <a href="{{ url_for('grievance.export_excel') }}" class="btn btn-success">📊 대장 Excel</a>
+    {% endif %}
+    <a href="{{ url_for('grievance.new') }}" class="btn btn-primary">＋ 고충 제기</a>
+  </div>
+</div>
+
+{% if can_handle %}
+<!-- 처리권자: 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
+  {% for key, label, color, icon in [
+      ('open','접수','#dc2626','📨'),
+      ('investigating','조사중','#d97706','🔎'),
+      ('resolved','처리완료','#16a34a','✅'),
+      ('closed','종결','#6b7280','📁'),
+  ] %}
+  <div class="card" style="text-align:center;padding:16px;">
+    <div style="font-size:1.3rem;">{{ icon }}</div>
+    <div style="font-size:1.7rem;font-weight:800;color:{{ color }};">{{ stats.get(key, 0) }}</div>
+    <div style="font-size:0.78rem;color:var(--text-muted);">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div style="display:flex;gap:6px;margin-bottom:16px;">
+  <a href="{{ url_for('grievance.index') }}" class="btn btn-sm {% if not status %}btn-primary{% else %}btn-outline{% endif %}">전체</a>
+  {% for k, v in status_kr.items() %}
+  <a href="{{ url_for('grievance.index', status=k) }}" class="btn btn-sm {% if status==k %}btn-primary{% else %}btn-outline{% endif %}">{{ v }}</a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="margin-bottom:18px;background:#f0f9ff;border-left:4px solid var(--accent);">
+  <div style="padding:14px 18px;font-size:0.85rem;color:var(--text-secondary);">
+    🔒 아래 목록은 <strong>회원님이 실명으로 제기한 고충</strong>만 표시됩니다.
+    익명으로 제기한 건은 비밀보장을 위해 추적되지 않습니다.
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">{% if mine %}내 고충 제기 내역{% else %}전체 고충{% endif %} <strong>{{ grievances|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>접수번호</th><th>접수일</th><th>분류</th><th>제목</th>
+          {% if can_handle %}<th>제기자</th>{% endif %}
+          <th>심각도</th><th>상태</th>{% if can_handle %}<th>담당</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for g in grievances %}
+      {% set overdue = g.due_date and g.due_date < today and g.status in ['open','investigating'] %}
+      <tr style="{% if overdue %}background:#fff5f5;{% endif %}">
+        <td style="font-family:monospace;font-size:0.78rem;color:var(--accent);">
+          <a href="{{ url_for('grievance.detail', grievance_id=g.id) }}">{{ g.grievance_number }}</a>
+        </td>
+        <td class="date-cell">{{ g.receipt_date }}</td>
+        <td><span style="font-size:0.78rem;background:var(--bg-base);border:1px solid var(--border);border-radius:4px;padding:2px 8px;">{{ g.category }}</span></td>
+        <td style="font-weight:600;">{{ g.title }}</td>
+        {% if can_handle %}
+        <td>{% if g.is_anonymous %}<span style="color:var(--text-muted);">🕶️ 익명</span>{% else %}{{ g.reporter_name or '-' }}{% endif %}</td>
+        {% endif %}
+        <td>
+          <span class="status-badge" style="background:{% if g.severity=='high' %}#fee2e2;color:#991b1b{% elif g.severity=='low' %}#f1f5f9;color:#475569{% else %}#fef9c3;color:#854d0e{% endif %};">
+            {{ severity_kr.get(g.severity, g.severity) }}
+          </span>
+        </td>
+        <td>
+          <span class="status-badge
+            {% if g.status=='resolved' %}status-active
+            {% elif g.status=='closed' %}status-obsolete
+            {% elif g.status=='investigating' %}status-review
+            {% else %}status-draft{% endif %}">{{ status_kr.get(g.status, g.status) }}</span>
+          {% if overdue %}<span style="color:var(--danger);font-size:0.7rem;font-weight:600;">기한초과</span>{% endif %}
+        </td>
+        {% if can_handle %}<td>{{ g.handler.name if g.handler else '-' }}</td>{% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-cell">🗣️ 표시할 고충이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

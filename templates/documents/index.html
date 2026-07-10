@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}기준문서 관리{% endblock %}
+{% block breadcrumb %}📁 기준문서 관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">기준문서 관리 <span>Document Control</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      ISO 9001 / 14001 / 45001 기준문서 등록, 개정, 승인, 폐기 관리
+    </p>
+  </div>
+  <a href="{{ url_for('documents.new') }}" class="btn btn-primary">＋ 문서 등록</a>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+    <form method="GET" class="search-form">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:200px;">
+          <label class="form-label">검색어</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="문서번호 또는 문서명">
+        </div>
+        <div>
+          <label class="form-label">ISO 규격</label>
+          <select name="iso" class="form-control">
+            <option value="">전체</option>
+            <option value="ISO9001"  {% if iso=='ISO9001' %}selected{% endif %}>ISO 9001 품질</option>
+            <option value="ISO14001" {% if iso=='ISO14001' %}selected{% endif %}>ISO 14001 환경</option>
+            <option value="ISO45001" {% if iso=='ISO45001' %}selected{% endif %}>ISO 45001 안전</option>
+            <option value="통합"     {% if iso=='통합' %}selected{% endif %}>통합</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">문서 유형</label>
+          <select name="type" class="form-control">
+            <option value="">전체</option>
+            <option value="매뉴얼"  {% if doc_type=='매뉴얼' %}selected{% endif %}>매뉴얼</option>
+            <option value="절차서" {% if doc_type=='절차서' %}selected{% endif %}>절차서</option>
+            <option value="지침서" {% if doc_type=='지침서' %}selected{% endif %}>지침서</option>
+            <option value="서식"   {% if doc_type=='서식' %}selected{% endif %}>서식</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">상태</label>
+          <select name="status" class="form-control">
+            <option value="">전체</option>
+            <option value="draft"    {% if status=='draft' %}selected{% endif %}>초안</option>
+            <option value="review"   {% if status=='review' %}selected{% endif %}>검토중</option>
+            <option value="active"   {% if status=='active' %}selected{% endif %}>배포중</option>
+            <option value="obsolete" {% if status=='obsolete' %}selected{% endif %}>폐기</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">부서</label>
+          <select name="dept" class="form-control">
+            <option value="">전체</option>
+            {% for dept in departments %}
+            <option value="{{ dept.id }}" {% if dept_id|string == dept.id|string %}selected{% endif %}>{{ dept.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+          <a href="{{ url_for('documents.index') }}" class="btn btn-outline btn-sm">초기화</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 문서 목록 -->
+<div class="card">
+  <div class="card-header">
+    검색 결과: 총 <strong>{{ documents|length }}</strong>건
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>문서번호</th>
+          <th>문서명</th>
+          <th>유형</th>
+          <th>ISO 규격</th>
+          <th>버전</th>
+          <th>소관부서</th>
+          <th>상태</th>
+          <th>시행일</th>
+          <th>등록일</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for doc in documents %}
+      <tr data-href="{{ url_for('documents.detail', doc_id=doc.id) }}" style="cursor:pointer;">
+        <td><a href="{{ url_for('documents.detail', doc_id=doc.id) }}" class="doc-link">{{ doc.doc_number }}</a></td>
+        <td style="font-weight:600;color:var(--text-primary);">{{ doc.title }}</td>
+        <td>{{ doc.doc_type }}</td>
+        <td>
+          {% if doc.iso_standard == 'ISO9001' %}
+            <span class="iso-chip iso-q">ISO 9001</span>
+          {% elif doc.iso_standard == 'ISO14001' %}
+            <span class="iso-chip iso-e">ISO 14001</span>
+          {% elif doc.iso_standard == 'ISO45001' %}
+            <span class="iso-chip iso-s">ISO 45001</span>
+          {% else %}
+            <span class="iso-chip" style="background:#f1f5f9;color:#475569;border-color:#cbd5e1;">{{ doc.iso_standard }}</span>
+          {% endif %}
+        </td>
+        <td>v{{ doc.version }}</td>
+        <td>{{ doc.department.name if doc.department else '-' }}</td>
+        <td>
+          <span class="status-badge status-{{ doc.status }}">
+            {{ {'draft':'초안','review':'검토중','approved':'승인','active':'배포중','obsolete':'폐기'}[doc.status] or doc.status }}
+          </span>
+        </td>
+        <td class="date-cell">{{ doc.effective_date or '-' }}</td>
+        <td class="date-cell">{{ doc.created_at.strftime('%Y-%m-%d') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">📁 등록된 문서가 없습니다.<br><a href="{{ url_for('documents.new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 첫 문서 등록하기</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

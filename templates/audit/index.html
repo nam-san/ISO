@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}내부심사{% endblock %}
+{% block breadcrumb %}🔍 심사 관리 › 내부심사{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">내부심사 관리 <span>Internal Audit</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      계획 → 체크리스트 심사 → 시정조치 → 결과보고서까지 단계별 작성·검토·승인
+    </p>
+  </div>
+  {% if current_user.has_edit() %}
+  <a href="{{ url_for('audit.new_audit') }}" class="btn btn-primary">＋ 신규 심사계획</a>
+  {% endif %}
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(2,200px);gap:14px;margin-bottom:20px;">
+  <div class="card" style="text-align:center;padding:16px;">
+    <div style="font-size:1.6rem;font-weight:800;color:#2563eb;">{{ audits|length }}</div>
+    <div style="font-size:0.8rem;color:var(--text-muted);">전체 심사</div>
+  </div>
+  <div class="card" style="text-align:center;padding:16px;">
+    <div style="font-size:1.6rem;font-weight:800;color:#d97706;">{{ open_capas }}</div>
+    <div style="font-size:0.8rem;color:var(--text-muted);">진행중 시정조치(CAPA)</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">심사 목록</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>심사번호</th><th>심사명</th><th>구분</th><th>적용표준</th>
+          <th>계획일</th><th>계획</th><th>보고서</th><th>진행</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in audits %}
+      <tr>
+        <td style="font-family:monospace;font-size:0.8rem;color:var(--accent);">{{ a.audit_number }}</td>
+        <td style="font-weight:600;"><a href="{{ url_for('audit.audit_detail', audit_id=a.id) }}" style="color:var(--text-primary);">{{ a.title }}</a></td>
+        <td><span class="status-badge {% if a.audit_type=='internal' %}status-review{% else %}status-obsolete{% endif %}">{{ '내부' if a.audit_type=='internal' else '외부' }}</span></td>
+        <td>
+          {% if a.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">9001</span>
+          {% elif a.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">14001</span>
+          {% elif a.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">45001</span>
+          {% else %}<span class="iso-chip">통합</span>{% endif %}
+        </td>
+        <td class="date-cell">{{ a.planned_date }}</td>
+        <td><span class="status-badge {% if a.plan_status=='approved' %}status-active{% elif a.plan_status in ['review','reviewed'] %}status-review{% else %}status-draft{% endif %}">{{ stage_kr.get(a.plan_status, a.plan_status) }}</span></td>
+        <td><span class="status-badge {% if a.report_status=='approved' %}status-active{% elif a.report_status in ['review','reviewed'] %}status-review{% else %}status-draft{% endif %}">{{ stage_kr.get(a.report_status, a.report_status) }}</span></td>
+        <td>
+          {% if a.status=='completed' %}<span class="status-badge status-active">완료</span>
+          {% elif a.status=='in_progress' %}<span class="status-badge status-review">진행중</span>
+          {% else %}<span class="status-badge status-draft">계획</span>{% endif %}
+        </td>
+        <td><a href="{{ url_for('audit.audit_detail', audit_id=a.id) }}" class="btn btn-outline btn-sm">상세</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">등록된 심사가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

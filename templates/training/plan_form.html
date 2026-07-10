@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ '교육계획 수정' if item else '교육계획 추가' }}{% endblock %}
+{% block breadcrumb %}🎓 교육훈련 › 연간 계획 › {{ '수정' if item else '추가' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ '연간 교육계획 수정' if item else '연간 교육계획 추가' }}</div>
+  <a href="{{ url_for('training.index', year=default_year) }}" class="btn btn-outline">← 목록으로</a>
+</div>
+
+<div class="card">
+  <div class="card-header">📋 교육계획 정보 입력</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('training.plan_edit', pid=item.id) if item else url_for('training.plan_new') }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">계획 연도 <span style="color:var(--danger)">*</span></label>
+          <input type="number" name="year" class="form-control" required value="{{ item.year if item else default_year }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">구분 <span style="color:var(--danger)">*</span></label>
+          <select name="category" class="form-control" required>
+            {% for v in ['안전보건','환경','일반법정','품질','직무일반','기타'] %}
+            <option value="{{ v }}" {% if item and item.category == v %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">주관</label>
+          <input type="text" name="host" class="form-control" placeholder="예: 인사/총무, 품질관리" value="{{ item.host if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">교육과정명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required placeholder="예: 산업안전보건교육" value="{{ item.title if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">교육 대상</label>
+          <input type="text" name="target_desc" class="form-control" placeholder="예: 전사 / 제조센터 / 팀별1명" value="{{ item.target_desc if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">인원</label>
+          <input type="number" name="target_count" class="form-control" min="0" value="{{ item.target_count if item and item.target_count else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">교육시간 (h)</label>
+          <input type="number" name="planned_hours" class="form-control" step="0.5" min="0" value="{{ item.planned_hours if item and item.planned_hours else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">실시주기</label>
+          <input type="text" name="cycle" class="form-control" placeholder="예: 연1회 / 반기1회 / 월1회 / 발생시" value="{{ item.cycle if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">교육기관</label>
+          <input type="text" name="institution" class="form-control" placeholder="예: 한국기업교육진흥원(온라인), 사내 교육" value="{{ item.institution if item else '' }}">
+        </div>
+
+        <!-- 계획 월 체크박스 -->
+        <div class="form-group form-full">
+          <label class="form-label">계획 월 (해당 월 선택 — 발생시 교육은 선택 안 함)</label>
+          {% set sel = item.planned_month_list if item else [] %}
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;">
+            {% for m in range(1,13) %}
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:6px;">
+              <input type="checkbox" name="months" value="{{ m }}" {% if m in sel %}checked{% endif %}> {{ m }}월
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="form-group form-full">
+          <label class="form-label">근거 (법령 / 절차서)</label>
+          <input type="text" name="legal_basis" class="form-control" placeholder="예: 산업안전보건법 §29, 문서관리 절차서" value="{{ item.legal_basis if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ISO 규격</label>
+          <select name="iso_standard" class="form-control">
+            <option value="">해당없음</option>
+            {% for v, lbl in [('ISO9001','ISO 9001'),('ISO14001','ISO 14001'),('ISO45001','ISO 45001'),('통합','통합')] %}
+            <option value="{{ v }}" {% if item and item.iso_standard == v %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">주관 부서 (내부)</label>
+          <select name="department_id" class="form-control">
+            <option value="">-- 선택 --</option>
+            {% for d in departments %}
+            <option value="{{ d.id }}" {% if item and item.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">비고</label>
+          <textarea name="note" class="form-control" rows="2">{{ item.note if item else '' }}</textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('training.index', year=default_year) }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 계획 추가' }}</button>
+        {% if item and (current_user.is_admin() or item.created_by_id == current_user.id) %}
+        <button type="submit" class="btn btn-danger btn-lg"
+                formaction="{{ url_for('training.plan_delete', pid=item.id) }}" formnovalidate
+                onclick="return confirm('교육계획 [{{ item.title }}]을(를) 삭제하시겠습니까? (연결된 실행이력은 보존됩니다)');">🗑️ 삭제</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

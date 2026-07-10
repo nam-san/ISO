@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ '설계변경 수정' if item else '설계변경 요청 등록' }}{% endblock %}
+{% block breadcrumb %}🔬 설계/개발 변경 › {{ '변경 수정' if item else '변경 요청 등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">설계/개발 변경 {{ '수정' if item else '요청 등록' }} <span>Design Change Request</span></div>
+  <a href="{{ url_for('design.index') }}" class="btn btn-outline">← 목록으로</a>
+</div>
+
+<div class="card">
+  <div class="card-header">🔬 변경 요청 정보 입력 {% if not item %}(변경번호는 자동 채번됩니다){% endif %}</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('design.edit', dcid=item.id) if item else url_for('design.new') }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">제품명 / 모델 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="product_name" class="form-control" required
+                 placeholder="예: IP교환기 NX-500, AMI MIU v2.1" value="{{ item.product_name if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">변경 유형 <span style="color:var(--danger)">*</span></label>
+          <select name="change_type" class="form-control" required>
+            <option value="">선택하세요</option>
+            <option value="설계변경">설계변경</option>
+            <option value="공정변경">공정변경</option>
+            <option value="자재변경">자재변경 (BOM 변경)</option>
+            <option value="소프트웨어변경">소프트웨어변경 (F/W, S/W)</option>
+            <option value="규격변경">규격변경</option>
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">변경 제목 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="change_title" class="form-control" required
+                 placeholder="예: 메인보드 CPU 부품 단종으로 인한 대체 부품 적용" value="{{ item.change_title if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">변경 사유 <span style="color:var(--danger)">*</span></label>
+          <textarea name="change_reason" class="form-control" rows="3" required
+                    placeholder="변경이 필요한 이유를 구체적으로 기재하세요.">{{ item.change_reason if item else '' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">변경 내용 <span style="color:var(--danger)">*</span></label>
+          <textarea name="change_content" class="form-control" rows="4" required
+                    placeholder="변경되는 내용을 구체적으로 기재하세요.">{{ item.change_content if item else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">변경 전 사양</label>
+          <textarea name="before_spec" class="form-control" rows="3"
+                    placeholder="변경 전 규격/사양/부품번호 등">{{ item.before_spec if item else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">변경 후 사양</label>
+          <textarea name="after_spec" class="form-control" rows="3"
+                    placeholder="변경 후 규격/사양/부품번호 등">{{ item.after_spec if item else '' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">검증 방법</label>
+          <textarea name="verification_method" class="form-control" rows="3"
+                    placeholder="변경 적용 후 검증 방법을 기재하세요.">{{ item.verification_method if item else '' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">리스크 평가</label>
+          <textarea name="risk_assessment" class="form-control" rows="3"
+                    placeholder="변경으로 인한 잠재적 리스크와 대응 방안을 기재하세요.">{{ item.risk_assessment if item else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">변경 요청일 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="request_date" class="form-control" required value="{{ item.request_date.strftime('%Y-%m-%d') if item and item.request_date else today.strftime('%Y-%m-%d') }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">적용 예정일</label>
+          <input type="date" name="apply_date" class="form-control" value="{{ item.apply_date.strftime('%Y-%m-%d') if item and item.apply_date else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">소관 부서</label>
+          <select name="department_id" class="form-control">
+            <option value="">선택하세요</option>
+            {% for dept in departments %}
+            <option value="{{ dept.id }}">{{ dept.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">첨부파일 (변경도면, 시험성적서, ECO 등)</label>
+          {% if item and item.file_name %}<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">현재 파일: {{ item.file_name }} (새 파일 선택 시 교체)</p>{% endif %}
+          <input type="file" name="file" class="form-control"
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg">
+        </div>
+      </div>
+
+      {% if not item %}
+      <div class="info-box" style="background:var(--iso-q-light);border:1px solid var(--iso-q);border-radius:var(--radius-sm);padding:14px 18px;margin:20px 0;font-size:0.82rem;color:var(--iso-q);">
+        💡 <strong>ISO 9001 8.3.6 설계·개발 변경 관리:</strong> 등록 후 검토 요청 → 팀장/관리자 승인 → 반영완료 순으로 처리됩니다.
+      </div>
+      {% endif %}
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('design.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 변경 요청 등록 (초안)' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% if item %}
+<script>
+(function () {
+  document.querySelector('select[name="change_type"]').value = {{ (item.change_type or '')|tojson }};
+  document.querySelector('select[name="department_id"]').value = {{ (item.department_id or '')|tojson }};
+})();
+</script>
+{% endif %}
+{% endblock %}

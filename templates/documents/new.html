@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ '문서 수정' if item else '문서 등록' }}{% endblock %}
+{% block breadcrumb %}📁 기준문서 관리 › {{ '문서 수정' if item else '문서 등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ '문서 정보 수정' if item else '신규 문서 등록' }} <span>{{ item.doc_number if item else 'New Document' }}</span></div>
+  <a href="{{ url_for('documents.index') }}" class="btn btn-outline">← 목록으로</a>
+</div>
+
+<div class="card">
+  <div class="card-header">📝 문서 정보 입력 {% if not item %}(문서번호는 자동으로 채번됩니다){% else %}(초안 상태에서만 수정 가능){% endif %}</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('documents.edit', doc_id=item.id) if item else url_for('documents.new') }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">ISO 규격 <span style="color:var(--danger)">*</span></label>
+          <select name="iso_standard" class="form-control" required id="isoSelect">
+            <option value="">선택하세요</option>
+            <option value="ISO9001">ISO 9001 (품질경영)</option>
+            <option value="ISO14001">ISO 14001 (환경경영)</option>
+            <option value="ISO45001">ISO 45001 (안전보건경영)</option>
+            <option value="통합">통합 (2개 이상 해당)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">문서 유형 <span style="color:var(--danger)">*</span></label>
+          {% if item %}
+          <input type="text" class="form-control" value="{{ item.doc_type }}" disabled>
+          <p style="font-size:0.74rem;color:var(--text-muted);margin-top:4px;">문서번호 채번과 연동되어 유형은 변경할 수 없습니다.</p>
+          {% else %}
+          <select name="doc_type" class="form-control" required id="docTypeSelect" onchange="toggleSubFields()">
+            <option value="">선택하세요</option>
+            <option value="매뉴얼">매뉴얼 (Manual)</option>
+            <option value="절차서">절차서 (Procedure)</option>
+            <option value="지침서">지침서 (Instruction)</option>
+            <option value="서식">서식 (Form)</option>
+          </select>
+          {% endif %}
+        </div>
+
+        {% if not item %}
+        <!-- 지침서용 세부 약호 선택 (동적 토글) -->
+        <div class="form-group" id="subTypeGroup" style="display:none;">
+          <label class="form-label">지침서 구분 <span style="color:var(--danger)">*</span></label>
+          <select name="sub_type" class="form-control" id="subTypeSelect">
+            <option value="II">수입검사기준 (II)</option>
+            <option value="PI">중간검사기준 (PI)</option>
+            <option value="OI">제품검사기준 (OI)</option>
+            <option value="WC">제조공정도 (WC)</option>
+            <option value="WI">작업지도서 (WI)</option>
+          </select>
+        </div>
+
+        <!-- 서식용 부모 절차서 선택 (동적 토글) -->
+        <div class="form-group" id="parentDocGroup" style="display:none;">
+          <label class="form-label">관련 절차서 <span style="color:var(--danger)">*</span></label>
+          <select name="parent_doc_id" class="form-control" id="parentDocSelect">
+            <option value="">-- 절차서 선택 --</option>
+            {% for proc in procedures %}
+            <option value="{{ proc.id }}">{{ proc.doc_number }} {{ proc.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="form-group form-full">
+          <label class="form-label">문서명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required placeholder="예: 수입검사 절차서" value="{{ item.title if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">소관 부서 <span style="color:var(--danger)">*</span></label>
+          <select name="department_id" class="form-control" required>
+            <option value="">선택하세요</option>
+            {% for dept in departments %}
+            <option value="{{ dept.id }}">{{ dept.name }} ({{ dept.location }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">시행일</label>
+          <input type="date" name="effective_date" class="form-control" value="{{ item.effective_date.strftime('%Y-%m-%d') if item and item.effective_date else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">문서 개요 / 적용 범위</label>
+          <textarea name="description" class="form-control" rows="3" placeholder="문서의 목적, 적용 범위를 간략히 기입하세요.">{{ item.description if item else '' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">파일 첨부 (PDF, Word, HWP, Excel 등 최대 50MB)</label>
+          {% if item and item.file_name %}<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">현재 파일: {{ item.file_name }} (새 파일 선택 시 교체)</p>{% endif %}
+          <input type="file" name="file" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg">
+        </div>
+      </div>
+
+      {% if not item %}
+      <div class="info-box" style="background:var(--iso-q-light);border:1px solid var(--iso-q);border-radius:var(--radius-sm);padding:14px 18px;margin:20px 0;font-size:0.82rem;color:var(--iso-q); line-height: 1.6;">
+        💡 <strong>주식회사 누리보이스 표준서 번호 부여 기준:</strong><br>
+        • <strong>품질매뉴얼:</strong> NV-QM-01 (품질매뉴얼 약호 QM 및 2자리 일련번호)<br>
+        • <strong>절차서(규정류):</strong> NV-P-001 (절차서 약호 P 및 3자리 일련번호)<br>
+        • <strong>지침서(기준서):</strong> NV-[지침서약호]-01 (수입검사 II / 중간검사 PI / 제품검사 OI / 제조공정 WC / 작업지도 WI)<br>
+        • <strong>서식(양식):</strong> P-001-1-(REV0) (관련 절차서 일련번호 P-000, 서식 일련번호 및 개정 차수 연동)
+      </div>
+      {% endif %}
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('documents.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 문서 등록 (초안 저장)' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleSubFields() {
+  const docTypeEl = document.getElementById('docTypeSelect');
+  if (!docTypeEl) return;
+  const docType = docTypeEl.value;
+  const subTypeGroup = document.getElementById('subTypeGroup');
+  const parentDocGroup = document.getElementById('parentDocGroup');
+  const subTypeSelect = document.getElementById('subTypeSelect');
+  const parentDocSelect = document.getElementById('parentDocSelect');
+  subTypeGroup.style.display = 'none';
+  parentDocGroup.style.display = 'none';
+  subTypeSelect.required = false;
+  parentDocSelect.required = false;
+  if (docType === '지침서') {
+    subTypeGroup.style.display = 'block';
+    subTypeSelect.required = true;
+  } else if (docType === '서식') {
+    parentDocGroup.style.display = 'block';
+    parentDocSelect.required = true;
+  }
+}
+{% if item %}
+document.querySelector('select[name="iso_standard"]').value = {{ (item.iso_standard or '')|tojson }};
+document.querySelector('select[name="department_id"]').value = {{ (item.department_id or '')|tojson }};
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}{{ audit.title }}{% endblock %}
+{% block breadcrumb %}🔍 내부심사 › {{ audit.audit_number }}{% endblock %}
+
+{% block content %}
+{% macro stage_badge(st) %}
+  <span class="status-badge {% if st=='approved' %}status-active{% elif st in ['review','reviewed'] %}status-review{% else %}status-draft{% endif %}">{{ stage_kr.get(st, st) }}</span>
+{% endmacro %}
+
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <span style="font-family:monospace;font-size:0.8rem;color:var(--accent);background:var(--bg-base);padding:3px 10px;border-radius:4px;">{{ audit.audit_number }}</span>
+      {% if audit.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">9001</span>
+      {% elif audit.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">14001</span>
+      {% elif audit.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">45001</span>
+      {% else %}<span class="iso-chip">통합</span>{% endif %}
+      <span class="status-badge {% if audit.status=='completed' %}status-active{% elif audit.status=='in_progress' %}status-review{% else %}status-draft{% endif %}">
+        {{ {'planned':'계획','in_progress':'진행중','completed':'완료'}.get(audit.status, audit.status) }}
+      </span>
+    </div>
+    <div class="page-title">{{ audit.title }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:3px;">
+      계획일 {{ audit.planned_date }}
+      {% if audit.period_start %} · 기간 {{ audit.period_start }}~{{ audit.period_end }}{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.is_admin() or (audit.created_by_id == current_user.id and audit.status != 'completed') %}
+    <form method="POST" action="{{ url_for('audit.delete_audit', audit_id=audit.id) }}" style="display:inline;"
+          onsubmit="return confirm('내부심사를 삭제하시겠습니까? 심사원·대상·체크리스트도 함께 삭제되며(연결 CAPA는 보존) 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('audit.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<!-- 단계 진행 표시 -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;">
+  {% for label, st, icon in [
+      ('① 계획', audit.plan_status, '📋'),
+      ('② 체크리스트 심사', 'review' if has_checklist else 'draft', '✅'),
+      ('③ 시정조치', 'review' if capas else 'draft', '⚡'),
+      ('④ 결과보고서', audit.report_status, '📊'),
+  ] %}
+  <div class="card" style="padding:14px;text-align:center;border-top:3px solid {% if st=='approved' %}var(--success){% elif st=='review' %}var(--warning){% else %}var(--border){% endif %};">
+    <div style="font-size:1.3rem;">{{ icon }}</div>
+    <div style="font-size:0.84rem;font-weight:700;margin:4px 0;">{{ label }}</div>
+    {{ stage_badge(st) }}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 탭 -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;">
+  <button class="tab-btn active" onclick="tab('plan')">📋 계획</button>
+  <button class="tab-btn" onclick="tab('check')">✅ 체크리스트</button>
+  <button class="tab-btn" onclick="tab('capa')">⚡ 시정조치 {% if capas %}<span style="background:#dc2626;color:#fff;font-size:0.65rem;padding:1px 6px;border-radius:8px;">{{ capas|length }}</span>{% endif %}</button>
+  <button class="tab-btn" onclick="tab('report')">📊 결과보고서</button>
+</div>
+
+<!-- ① 계획 -->
+<div id="t-plan">
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;">
+    <div class="card">
+      <div class="card-header">심사 계획 정보 {{ stage_badge(audit.plan_status) }}</div>
+      <div class="card-body" style="font-size:0.88rem;line-height:1.9;">
+        <div><strong>심사 기준:</strong> {{ audit.audit_criteria or '-' }}</div>
+        <div><strong>심사 범위·목적:</strong><br>{{ audit.scope or '-' }}</div>
+        <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+        <div><strong>심사 대상 부서:</strong>
+          {% for t in targets %}<span class="status-badge status-review" style="margin:2px;">{{ t.department.name }}</span>{% endfor %}
+          {% if not targets %}<span style="color:var(--danger);">미지정</span>{% endif %}
+        </div>
+        {% if audit.plan_approved_by %}
+        <div style="margin-top:8px;color:var(--success);">✅ {{ audit.plan_approved_at.strftime('%Y-%m-%d') }} 승인 — {{ audit.plan_approved_by.name }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-header">👥 심사원</div>
+        <div class="card-body">
+          {% for a in auditors %}
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:0.88rem;">
+            {% if a.is_lead %}<span style="background:#1e3a5f;color:#fff;font-size:0.65rem;padding:1px 6px;border-radius:8px;">선임</span>{% else %}<span style="color:var(--text-muted);">·</span>{% endif %}
+            {{ a.user.name }}{% if a.user.department %} <span style="font-size:0.75rem;color:var(--text-muted);">({{ a.user.department.name }})</span>{% endif %}
+          </div>
+          {% else %}<div style="color:var(--text-muted);font-size:0.85rem;">지정된 심사원이 없습니다.</div>{% endfor %}
+        </div>
+      </div>
+
+      <!-- 계획 워크플로우 -->
+      <div class="card">
+        <div class="card-header">계획 승인 단계</div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+          {% if audit.plan_status == 'draft' and current_user.has_edit() %}
+          {% set assigned = concurrences|map(attribute='department_id')|list %}
+          <form method="POST" action="{{ url_for('audit.plan_action', audit_id=audit.id, action='submit') }}">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;">관계부서 합의 지정 (선택 부서 모두 동의해야 승인 가능)</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;max-height:160px;overflow-y:auto;">
+              {% for d in concur_dept_options %}
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;">
+                <input type="checkbox" name="concur_depts" value="{{ d.id }}" {% if d.id in assigned %}checked{% endif %} style="width:15px;height:15px;">
+                {{ d.name }}
+              </label>
+              {% endfor %}
+            </div>
+            <button class="btn btn-primary btn-sm" style="width:100%;">검토 요청 (작성완료)</button>
+          </form>
+          {% endif %}
+          {% if audit.plan_status == 'review' and can_review %}
+          <form method="POST" action="{{ url_for('audit.plan_action', audit_id=audit.id, action='review') }}">
+            <button class="btn btn-primary btn-sm" style="width:100%;">🔍 검토 완료 (승인 요청)</button>
+          </form>
+          {% endif %}
+          {% if audit.plan_status == 'reviewed' %}
+            {% if not concur_can_final %}
+            <div style="font-size:0.78rem;color:#a16207;background:#fef9c3;padding:8px;border-radius:6px;">
+              ⏳ 관계부서 합의 진행 중 (동의 {{ concur_counts.agreed }}/{{ concur_counts.total }}{% if concur_counts.disagreed %}, 반려 {{ concur_counts.disagreed }}{% endif %})
+            </div>
+            {% endif %}
+            {% if can_approve %}
+            <form method="POST" action="{{ url_for('audit.plan_action', audit_id=audit.id, action='approve') }}">
+              <button class="btn btn-success btn-sm" style="width:100%;" {% if not concur_can_final %}disabled title="관계부서 합의 완료 후 승인 가능"{% endif %}>✅ 계획 승인</button>
+            </form>
+            {% endif %}
+          {% endif %}
+          {% if audit.plan_status == 'approved' and can_approve %}
+          <form method="POST" action="{{ url_for('audit.plan_action', audit_id=audit.id, action='reopen') }}">
+            <button class="btn btn-outline btn-sm" style="width:100%;">작성중으로 되돌리기</button>
+          </form>
+          {% endif %}
+          {% if audit.plan_status in ['review','reviewed'] and concur_counts.disagreed > 0 and current_user.has_edit() %}
+          <div style="font-size:0.78rem;color:var(--danger);">⚠️ 관계부서 반려 의견이 있습니다. 수정 후 재상신하세요.</div>
+          <form method="POST" action="{{ url_for('audit.plan_action', audit_id=audit.id, action='reopen') }}">
+            <button class="btn btn-outline btn-sm" style="width:100%;">↩️ 작성중으로 되돌리기</button>
+          </form>
+          {% endif %}
+          {% if audit.plan_status == 'draft' and not current_user.has_edit() %}
+          <div style="font-size:0.8rem;color:var(--text-muted);">작성 권한이 없습니다.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- 관계부서 합의 현황 -->
+      {% if concur_counts.total > 0 %}
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">🤝 관계부서 합의 현황
+          <span style="font-size:0.72rem;font-weight:400;color:var(--text-muted);">
+            동의 {{ concur_counts.agreed }}/{{ concur_counts.total }}{% if concur_counts.disagreed %} · 반려 {{ concur_counts.disagreed }}{% endif %}
+          </span>
+        </div>
+        <div class="card-body" style="padding:0;">
+          {% for c in concurrences %}
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border-light);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.84rem;font-weight:600;">{{ c.department.name }}</span>
+              <span class="status-badge status-{{ 'active' if c.status=='agreed' else 'obsolete' if c.status=='disagreed' else 'draft' }}">
+                {{ {'agreed':'동의','disagreed':'반려','pending':'대기'}[c.status] }}
+              </span>
+            </div>
+            {% if c.acted_by %}<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">{{ c.acted_by.name }} · {{ c.acted_at.strftime('%Y-%m-%d %H:%M') }}</div>{% endif %}
+            {% if c.comment %}<div style="font-size:0.78rem;margin-top:4px;color:var(--text-secondary);">“{{ c.comment }}”</div>{% endif %}
+            {% if audit.plan_status in ['review','reviewed'] and c.status == 'pending' and c.can_act %}
+            <form method="POST" action="{{ url_for('audit.plan_concur', audit_id=audit.id) }}" style="margin-top:8px;">
+              <input type="hidden" name="department_id" value="{{ c.department_id }}">
+              <input type="text" name="comment" class="form-control" placeholder="합의 의견 (선택)" style="font-size:0.78rem;margin-bottom:6px;">
+              <div style="display:flex;gap:6px;">
+                <button type="submit" name="action" value="agree" class="btn btn-success btn-sm" style="flex:1;">동의</button>
+                <button type="submit" name="action" value="disagree" class="btn btn-danger btn-sm" style="flex:1;" onclick="return confirm('반려하시겠습니까?')">반려</button>
+              </div>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ② 체크리스트 -->
+<div id="t-check" style="display:none;">
+  {% if not has_checklist %}
+  <div class="card" style="text-align:center;padding:40px;">
+    <div style="font-size:2rem;margin-bottom:8px;">✅</div>
+    <p style="color:var(--text-muted);margin-bottom:16px;">아직 체크리스트가 생성되지 않았습니다.<br>대상 부서별로 ISO 규격에 따른 점검항목이 자동 생성됩니다.</p>
+    {% if current_user.has_edit() and targets %}
+    <form method="POST" action="{{ url_for('audit.generate_checklist', audit_id=audit.id) }}">
+      <button class="btn btn-primary">체크리스트 생성 (부서별 시트)</button>
+    </form>
+    {% elif not targets %}
+    <p style="color:var(--danger);">먼저 심사 대상 부서를 지정하세요.</p>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="card-header">부서별 체크리스트 시트</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>부서 (시트)</th><th>진행률</th><th>부적합</th><th>피심사자</th><th></th></tr></thead>
+        <tbody>
+        {% for sp in sheet_progress %}
+        <tr>
+          <td style="font-weight:600;">🏢 {{ sp.target.department.name }}</td>
+          <td style="min-width:160px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="flex:1;background:var(--bg-base);border-radius:6px;height:8px;overflow:hidden;">
+                <div style="width:{{ sp.pct }}%;height:100%;background:{% if sp.pct==100 %}var(--success){% else %}var(--accent){% endif %};"></div>
+              </div>
+              <span style="font-size:0.78rem;color:var(--text-muted);">{{ sp.checked }}/{{ sp.total }}</span>
+            </div>
+          </td>
+          <td>{% if sp.nc > 0 %}<span class="status-badge" style="background:#fee2e2;color:#991b1b;">{{ sp.nc }}건</span>{% else %}<span style="color:var(--text-muted);">0</span>{% endif %}</td>
+          <td style="font-size:0.85rem;">{{ sp.target.auditee_name or '-' }}</td>
+          <td><a href="{{ url_for('audit.checklist_sheet', audit_id=audit.id, dept_id=sp.target.department_id) }}" class="btn btn-primary btn-sm">시트 열기</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ③ 시정조치 -->
+<div id="t-capa" style="display:none;">
+  <div class="card">
+    <div class="card-header">시정조치(CAPA) — 부적합 항목 {{ capas|length }}건</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>번호</th><th>구분</th><th>부적합 내용</th><th>조항</th><th>담당</th><th>기한</th><th>상태</th><th></th></tr></thead>
+        <tbody>
+        {% for c in capas %}
+        <tr>
+          <td style="font-family:monospace;font-size:0.78rem;">{{ c.capa_number }}</td>
+          <td><span class="status-badge {% if c.nc_type=='major' %}status-obsolete{% elif c.nc_type=='minor' %}status-review{% else %}status-draft{% endif %}">{{ {'major':'중부적합','minor':'경부적합','obs':'관찰'}.get(c.nc_type, c.nc_type) }}</span></td>
+          <td style="max-width:280px;font-size:0.85rem;">{{ (c.nc_description or '')[:60] }}</td>
+          <td style="font-size:0.78rem;">{{ c.iso_clause or '-' }}</td>
+          <td>{{ c.responsible.name if c.responsible else '-' }}</td>
+          <td class="date-cell">{{ c.due_date or '-' }}</td>
+          <td><span class="status-badge {% if c.status=='closed' %}status-active{% elif c.status=='verified' %}status-review{% else %}status-draft{% endif %}">{{ {'open':'미결','in_progress':'진행중','verified':'검토완료','closed':'종결'}.get(c.status, c.status) }}</span></td>
+          <td><a href="{{ url_for('audit.capa_detail', capa_id=c.id) }}" class="btn btn-outline btn-sm">처리</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty-cell">등록된 시정조치가 없습니다. 체크리스트에서 부적합 발견 시 등록됩니다.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 결과보고서 -->
+<div id="t-report" style="display:none;">
+  <a name="report"></a>
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;">
+    <div class="card">
+      <div class="card-header">결과보고서 작성 {{ stage_badge(audit.report_status) }}</div>
+      <div class="card-body">
+        {% set ro = audit.report_status == 'approved' %}
+        <form method="POST" action="{{ url_for('audit.report_action', audit_id=audit.id) }}">
+          <input type="hidden" name="action_type" value="save">
+          <div style="margin-bottom:12px;">
+            <label class="form-label">적합성 판정</label>
+            <select name="report_result" class="form-control" {% if ro %}disabled{% endif %}>
+              <option value="">-- 선택 --</option>
+              <option value="conform" {% if audit.report_result=='conform' %}selected{% endif %}>적합 (Conform)</option>
+              <option value="conditional" {% if audit.report_result=='conditional' %}selected{% endif %}>조건부 적합</option>
+              <option value="nonconform" {% if audit.report_result=='nonconform' %}selected{% endif %}>부적합 (Nonconform)</option>
+            </select>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">종합 의견</label>
+            <textarea name="report_summary" class="form-control" rows="5" {% if ro %}readonly{% endif %}>{{ audit.report_summary or '' }}</textarea>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="form-label">결론 (적합성 판정 사유)</label>
+            <textarea name="report_conclusion" class="form-control" rows="4" {% if ro %}readonly{% endif %}>{{ audit.report_conclusion or '' }}</textarea>
+          </div>
+          {% if not ro and current_user.has_edit() %}
+          <button type="submit" class="btn btn-primary">💾 보고서 저장</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">보고서 승인 단계</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+        {% if audit.report_status == 'draft' and current_user.has_edit() %}
+        <form method="POST" action="{{ url_for('audit.report_action', audit_id=audit.id) }}">
+          <input type="hidden" name="action_type" value="submit">
+          <button class="btn btn-primary btn-sm" style="width:100%;">검토 요청 (작성완료)</button>
+        </form>
+        {% endif %}
+        {% if audit.report_status == 'review' and can_review %}
+        <form method="POST" action="{{ url_for('audit.report_action', audit_id=audit.id) }}">
+          <input type="hidden" name="action_type" value="review">
+          <button class="btn btn-primary btn-sm" style="width:100%;">🔍 검토 완료 (승인 요청)</button>
+        </form>
+        {% endif %}
+        {% if audit.report_status == 'reviewed' and can_approve %}
+        <form method="POST" action="{{ url_for('audit.report_action', audit_id=audit.id) }}">
+          <input type="hidden" name="action_type" value="approve">
+          <button class="btn btn-success btn-sm" style="width:100%;"
+            onclick="return confirm('결과보고서를 승인하면 심사가 완료 처리됩니다.')">✅ 보고서 승인 (심사완료)</button>
+        </form>
+        {% endif %}
+        {% if audit.report_status == 'approved' %}
+        <div style="color:var(--success);font-size:0.85rem;">✅ {{ audit.report_approved_at.strftime('%Y-%m-%d') }} 승인<br>{{ audit.report_approved_by.name }}</div>
+        {% if can_approve %}
+        <form method="POST" action="{{ url_for('audit.report_action', audit_id=audit.id) }}">
+          <input type="hidden" name="action_type" value="reopen">
+          <button class="btn btn-outline btn-sm" style="width:100%;">작성중으로 되돌리기</button>
+        </form>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function tab(name) {
+  ['plan','check','capa','report'].forEach(n => document.getElementById('t-'+n).style.display='none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('t-'+name).style.display='block';
+  event.target.classList.add('active');
+}
+if (location.hash === '#report') tab('report');
+</script>
+<style>
+.tab-btn{padding:10px 18px;border:none;background:transparent;font-size:0.88rem;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab-btn:hover{color:var(--text-primary);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+</style>
+{% endblock %}

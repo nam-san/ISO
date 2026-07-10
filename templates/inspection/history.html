@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}점검 이력{% endblock %}
+{% block breadcrumb %}🗓️ 법정점검 › 점검 이력{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">법정점검 실시 이력 {% if itype %}<span>— {{ itype.name }}</span>{% endif %}</div>
+  <a href="{{ url_for('inspection.index') }}" class="btn btn-outline">← 일정표</a>
+</div>
+
+<!-- 항목 필터 -->
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
+  <a href="{{ url_for('inspection.history') }}" class="btn btn-sm {% if not itype %}btn-primary{% else %}btn-outline{% endif %}">전체</a>
+  {% for t in types %}
+  <a href="{{ url_for('inspection.history', type_id=t.id) }}" class="btn btn-sm {% if itype and itype.id==t.id %}btn-primary{% else %}btn-outline{% endif %}">{{ t.name }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">총 <strong>{{ records|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>실시일</th><th>점검 항목</th><th>결과</th><th>점검자/기관</th><th>차기 예정일</th><th>지적/조치</th><th>부서</th><th>증빙</th><th>관리</th></tr>
+      </thead>
+      <tbody>
+      {% for r in records %}
+      <tr>
+        <td class="date-cell" style="font-weight:600;">{{ r.performed_date }}</td>
+        <td>{{ r.inspection_type.name }}</td>
+        <td>
+          <span class="status-badge {% if r.result=='적합' %}status-active{% elif r.result=='부적합' %}status-danger{% else %}status-review{% endif %}">{{ r.result }}</span>
+        </td>
+        <td>{{ r.performer or '-' }}</td>
+        <td class="date-cell">{{ r.next_due_date or '-' }}</td>
+        <td style="font-size:0.8rem;max-width:240px;">
+          {% if r.finding %}<div><strong>지적:</strong> {{ r.finding }}</div>{% endif %}
+          {% if r.action %}<div style="color:var(--text-muted);"><strong>조치:</strong> {{ r.action }}</div>{% endif %}
+          {% if not r.finding and not r.action %}-{% endif %}
+        </td>
+        <td>{{ r.department.name if r.department else '-' }}</td>
+        <td>{% if r.file_name %}📎{% else %}-{% endif %}</td>
+        <td>
+          {% if current_user.is_admin() or r.created_by_id == current_user.id %}
+          {{ icons.delete_form(url_for('inspection.delete_record', record_id=r.id), '점검 이력을 삭제하시겠습니까? 되돌릴 수 없습니다.') }}
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">점검 이력이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>.status-badge.status-danger{background:#fee2e2;color:#991b1b;}</style>
+{% endblock %}

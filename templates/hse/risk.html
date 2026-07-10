@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}위험성평가 대장{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 관리 › 위험성 평가{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">위험성평가 대장</div>
+    <div class="page-subtitle">작업장 내 유해·위험 요인을 사전에 찾아내어 위험의 크기를 평가하고 감소 대책을 수립합니다.</div>
+  </div>
+  <div style="display: flex; gap: var(--spacing-sm);">
+    <a href="{{ url_for('hse.index') }}" class="btn btn-secondary">
+      <span>↩️ HSE 메인</span>
+    </a>
+    <a href="{{ url_for('hse.export_risk', site=site) }}" class="btn btn-success">
+      <span>📊 Excel 다운로드{% if site %} ({{ site }}){% endif %}</span>
+    </a>
+    <a href="{{ url_for('hse.new_risk') }}" class="btn btn-primary" style="background-color: var(--iso-s); border-color: var(--iso-s); color: white;">
+      <span>➕ 신규 위험성평가 등록</span>
+    </a>
+  </div>
+</div>
+
+<!-- 사업장 필터 -->
+<div style="margin-bottom: var(--spacing-md); display: flex; gap: var(--spacing-xs);">
+  <a href="{{ url_for('hse.risk') }}" class="btn btn-sm {% if not site %}btn-primary{% else %}btn-secondary{% endif %}">전체</a>
+  <a href="{{ url_for('hse.risk', site='본사') }}" class="btn btn-sm {% if site == '본사' %}btn-primary{% else %}btn-secondary{% endif %}">🏢 본사 (서울)</a>
+  <a href="{{ url_for('hse.risk', site='제조공장') }}" class="btn btn-sm {% if site == '제조공장' %}btn-primary{% else %}btn-secondary{% endif %}">🏭 제조공장 (나주)</a>
+</div>
+
+<!-- 위험 등급별 · 개선조치 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px;">
+  {% for label, val, color, sub in [
+      ('상 (고위험)', stats['상'], '#b91c1c', '즉시 개선 필요'),
+      ('중 (중위험)', stats['중'], '#a16207', '개선 계획 수립'),
+      ('하 (저위험)', stats['하'], '#15803d', '현 수준 유지·관리'),
+      ('개선 진행중', stats['improving'], '#2563eb', '계획·승인대기'),
+      ('개선 완료', stats['improved'], '#0f766e', '승인 완료') ] %}
+  <div class="card" style="text-align:center;padding:16px;">
+    <div style="font-size:1.7rem;font-weight:800;color:{{ color }};font-variant-numeric:tabular-nums;">{{ val }}</div>
+    <div style="font-size:0.82rem;font-weight:600;color:var(--text-primary);margin-top:2px;">{{ label }}</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">{{ sub }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="table-container">
+  <div class="card-header">
+    <h3 class="card-title">안전보건 위험성평가 이력 대장{% if site %} — {{ site }}{% endif %}</h3>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>평가 번호</th>
+        <th>사업장</th>
+        <th>작업 구역</th>
+        <th>작업 구분</th>
+        <th>유해·위험 요인 (Hazard)</th>
+        <th>예상 재해 시나리오</th>
+        <th>위험성 (가능성x중대성)</th>
+        <th>위험 등급</th>
+        <th>현재 안전조치</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for risk in risks %}
+      <tr class="{% if risk.risk_grade == '상' %}row-danger{% elif risk.risk_grade == '중' %}row-warning{% endif %}">
+        <td><strong>{{ risk.risk_number }}</strong></td>
+        <td><span class="badge {% if risk.site == '본사' %}badge-info{% else %}badge-secondary{% endif %}">{{ risk.site or '제조공장' }}</span></td>
+        <td>{{ risk.work_area }}</td>
+        <td>{{ risk.work_type }}</td>
+        <td>{{ risk.hazard }}</td>
+        <td>{{ risk.risk_scenario }}</td>
+        <td>
+          <span style="font-weight: 600;">{{ risk.risk_level }}점</span>
+          <span class="text-muted" style="font-size: var(--font-xs);">({{ risk.probability }} × {{ risk.severity }})</span>
+        </td>
+        <td>
+          {% if risk.risk_grade == '상' %}
+          <span class="badge badge-danger">상 (고위험)</span>
+          {% elif risk.risk_grade == '중' %}
+          <span class="badge badge-warning">중 (중위험)</span>
+          {% else %}
+          <span class="badge badge-success">하 (저위험)</span>
+          {% endif %}
+        </td>
+        <td>{{ risk.control_measure or '-' }}</td>
+        <td style="white-space:nowrap;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            {% set imp = imp_map.get(risk.id) %}
+            {% if imp and imp.status in ['in_progress','completed'] %}
+              {# 진행 중인 개선이 있으면 상태만 표시(중복 생성 방지) #}
+              {% set st = {'in_progress':('개선중','review'),'completed':('승인대기','active')} %}
+              <a href="{{ url_for('improvement.detail', imp_id=imp.id) }}" class="status-badge status-{{ st[imp.status][1] }}" style="text-decoration:none;">🛠️ {{ st[imp.status][0] }}</a>
+            {% elif imp and imp.status == 'approved' %}
+              {# 완료 이력 + 추가개선을 2단(세로)으로, 동일 크기 알약 #}
+              <div style="display:flex;flex-direction:column;gap:3px;align-items:stretch;">
+                <a href="{{ url_for('improvement.detail', imp_id=imp.id) }}" class="status-badge status-approved" style="text-decoration:none;justify-content:center;" title="완료된 개선조치 보기">✅ 완료</a>
+                {% if current_user.has_edit() %}
+                <a href="{{ url_for('improvement.new', risk_id=risk.id) }}" class="status-badge" style="text-decoration:none;justify-content:center;background:var(--bg-base);color:var(--primary);border:1px solid var(--border);" title="추가 개선조치 작성">🛠️ 추가개선</a>
+                {% endif %}
+              </div>
+            {% elif current_user.has_edit() %}
+              <a href="{{ url_for('improvement.new', risk_id=risk.id) }}" class="btn btn-outline btn-sm" title="개선조치 작성">🛠️ 개선</a>
+            {% endif %}
+            <span style="display:inline-flex;gap:4px;align-items:center;">
+              {% if current_user.has_edit() and (current_user.is_admin() or risk.created_by_id == current_user.id) %}
+              {{ icons.edit_link(url_for('hse.edit_risk', rid=risk.id)) }}
+              {% endif %}
+              {% if current_user.is_admin() or risk.created_by_id == current_user.id %}
+              {{ icons.delete_form(url_for('hse.delete_risk', rid=risk.id), '위험성평가를 삭제하시겠습니까? 되돌릴 수 없습니다.') }}
+              {% endif %}
+            </span>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="10" class="text-center text-muted" style="padding: var(--spacing-xl);">등록된 위험성평가 대장이 없습니다.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

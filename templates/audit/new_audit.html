@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}신규 심사계획{% endblock %}
+{% block breadcrumb %}🔍 내부심사 › 신규 심사계획{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">신규 심사계획 <span>New Audit Plan</span></div>
+  <a href="{{ url_for('audit.index') }}" class="btn btn-outline">← 목록</a>
+</div>
+
+<form method="POST">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">📋 심사 기본 정보</div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">심사명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required placeholder="예: 2026년 상반기 정기 내부심사">
+        </div>
+        <div>
+          <label class="form-label">심사 구분</label>
+          <select name="audit_type" class="form-control">
+            <option value="internal">내부심사</option>
+            <option value="external">외부심사</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">적용 표준 <span style="color:var(--danger)">*</span></label>
+          <select name="iso_standard" class="form-control" required>
+            <option value="통합">통합 (9001+14001+45001)</option>
+            <option value="ISO9001">ISO 9001 품질</option>
+            <option value="ISO14001">ISO 14001 환경</option>
+            <option value="ISO45001">ISO 45001 안전보건</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">계획일(대표) <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="planned_date" class="form-control" required value="{{ today }}">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div><label class="form-label">심사기간 시작</label><input type="date" name="period_start" class="form-control"></div>
+          <div><label class="form-label">종료</label><input type="date" name="period_end" class="form-control"></div>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">심사 기준 (적용 표준·문서)</label>
+          <input type="text" name="audit_criteria" class="form-control" placeholder="예: ISO 9001:2015, 품질매뉴얼, 절차서, 관련 법규">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">심사 범위·목적</label>
+          <textarea name="scope" class="form-control" rows="2" placeholder="심사 대상 프로세스·범위 및 목적"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 심사원 지정 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">👥 심사원 지정 <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">— 내부심사자로 지정된 인원만 선택 가능</span></div>
+    <div class="card-body">
+      {% if not users %}
+      <div class="flash-msg flash-warning" style="margin-bottom:14px;">
+        ⚠️ 내부심사자로 지정된 인원이 없습니다.
+        {% if current_user.is_admin() %}<a href="{{ url_for('admin.permissions') }}" style="color:var(--accent);font-weight:600;">권한 관리</a>에서 내부심사자를 먼저 지정하세요.{% else %}관리자에게 내부심사자 지정을 요청하세요.{% endif %}
+      </div>
+      {% endif %}
+      <div style="margin-bottom:14px;">
+        <label class="form-label">선임심사원 (Lead) <span style="color:var(--danger)">*</span></label>
+        <select name="lead_auditor_id" class="form-control" required style="max-width:360px;">
+          <option value="">-- 선임심사원 선택 --</option>
+          {% for u in users %}<option value="{{ u.id }}">{{ u.name }}{% if u.department %} ({{ u.department.name }}){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">심사원 (다중 선택 — Ctrl/Shift)</label>
+        <select name="auditor_ids" class="form-control" multiple size="6" style="max-width:360px;">
+          {% for u in users %}<option value="{{ u.id }}">{{ u.name }}{% if u.department %} ({{ u.department.name }}){% endif %}</option>{% endfor %}
+        </select>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">선임심사원은 자동 포함됩니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 심사 대상 부서 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">🏢 심사 대상 부서 지정 <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">— 부서별 체크리스트 시트가 생성됩니다</span></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+        {% for d in departments %}
+        <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+          <input type="checkbox" name="target_dept_ids" value="{{ d.id }}" style="width:16px;height:16px;">
+          <span style="font-size:0.88rem;">{{ d.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:8px;">* 최소 1개 부서를 선택하세요.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;">
+    <a href="{{ url_for('audit.index') }}" class="btn btn-outline">취소</a>
+    <button type="submit" class="btn btn-primary">심사계획 생성 →</button>
+  </div>
+</form>
+{% endblock %}

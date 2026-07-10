@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}자가진단 체크시트{% endblock %}
+{% block breadcrumb %}🛡️ 운영 자가진단 › 자가진단 체크시트{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">운영 자가진단 체크시트 <span>Operational Self-Assessment</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      삼성전자 협력사 RBA 41대 EHS 체크리스트(ISO 14001/45001) 자가진단 · 증빙 연결 · 준수율 관리
+    </p>
+  </div>
+  {% if current_user.is_manager() %}
+  <a href="{{ url_for('rba.new') }}" class="btn btn-primary">＋ 자가진단 실시</a>
+  {% endif %}
+</div>
+
+<!-- 체크리스트 구성 요약 -->
+<div class="section-title"><h3>📐 체크리스트 구성 ({{ total_items }}개 항목)</h3></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">
+  {% set order = ['안전보건-운영','안전보건-경영시스템','환경-운영','환경-경영시스템'] %}
+  {% set icons = {'안전보건-운영':'⛑️','안전보건-경영시스템':'📋','환경-운영':'🌿','환경-경영시스템':'📊'} %}
+  {% set colors = {'안전보건-운영':'#dc2626','안전보건-경영시스템':'#ea580c','환경-운영':'#16a34a','환경-경영시스템':'#0891b2'} %}
+  {% for key in order %}
+  {% set d = domain_summary.get(key) %}
+  {% if d %}
+  <div class="card" style="padding:18px;border-top:3px solid {{ colors[key] }};">
+    <div style="font-size:1.3rem;margin-bottom:4px;">{{ icons[key] }}</div>
+    <div style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);">{{ d.domain }} · {{ d.section }}</div>
+    <div style="font-size:1.5rem;font-weight:800;color:{{ colors[key] }};margin-top:4px;">{{ d.count }}<span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">개 항목</span></div>
+    <div style="font-size:0.75rem;color:var(--text-muted);">배점 합계 {{ d.score }}점</div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- 자가진단 회차 목록 -->
+<div class="section-title"><h3>📝 자가진단 이력</h3></div>
+{% if assessments %}
+<div style="display:grid;gap:14px;">
+  {% for a in assessments %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="height:4px;background:{% if a.conformance_rate>=90 %}var(--success){% elif a.conformance_rate>=70 %}var(--warning){% else %}var(--danger){% endif %};"></div>
+    <div style="padding:18px 22px;display:flex;align-items:center;gap:20px;">
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+          <span style="font-family:monospace;font-size:0.78rem;color:var(--accent);background:var(--bg-base);padding:2px 8px;border-radius:4px;">{{ a.assessment_number }}</span>
+          <span class="status-badge {% if a.status=='completed' %}status-active{% else %}status-draft{% endif %}">
+            {{ '완료' if a.status=='completed' else '작성중' }}
+          </span>
+        </div>
+        <div style="font-size:1.02rem;font-weight:700;">
+          <a href="{{ url_for('rba.detail', assessment_id=a.id) }}" style="color:var(--text-primary);">{{ a.title }}</a>
+        </div>
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px;">
+          {{ a.customer }} · 진단일 {{ a.assess_date }}{% if a.assessor %} · 담당 {{ a.assessor.name }}{% endif %}
+        </div>
+      </div>
+
+      <!-- 준수율 게이지 -->
+      <div style="text-align:center;min-width:90px;">
+        <div style="font-size:1.8rem;font-weight:800;color:{% if a.conformance_rate>=90 %}var(--success){% elif a.conformance_rate>=70 %}var(--warning){% else %}var(--danger){% endif %};">
+          {{ a.conformance_rate }}<span style="font-size:0.9rem;">%</span>
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-muted);">준수율</div>
+      </div>
+
+      <!-- 위반 요약 -->
+      <div style="display:flex;gap:6px;min-width:170px;">
+        <div style="text-align:center;background:#fecaca;border-radius:6px;padding:6px 10px;flex:1;">
+          <div style="font-weight:800;color:#991b1b;">{{ a.priority_count }}</div>
+          <div style="font-size:0.62rem;color:#991b1b;">Priority</div>
+        </div>
+        <div style="text-align:center;background:#fed7aa;border-radius:6px;padding:6px 10px;flex:1;">
+          <div style="font-weight:800;color:#9a3412;">{{ a.major_count }}</div>
+          <div style="font-size:0.62rem;color:#9a3412;">Major</div>
+        </div>
+        <div style="text-align:center;background:#fef9c3;border-radius:6px;padding:6px 10px;flex:1;">
+          <div style="font-weight:800;color:#854d0e;">{{ a.minor_count }}</div>
+          <div style="font-size:0.62rem;color:#854d0e;">Minor</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <a href="{{ url_for('rba.detail', assessment_id=a.id) }}" class="btn btn-outline btn-sm">평가</a>
+        <a href="{{ url_for('rba.export_excel', assessment_id=a.id) }}" class="btn btn-success btn-sm">Excel</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:50px;">
+  <div style="font-size:3rem;margin-bottom:12px;">🛡️</div>
+  <div style="font-size:1.05rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">자가진단 이력이 없습니다</div>
+  <p style="color:var(--text-muted);margin-bottom:18px;">삼성 RBA 실사 전 자가진단을 실시하여 준수율과 개선항목을 사전 점검하세요.</p>
+  {% if current_user.is_manager() %}
+  <a href="{{ url_for('rba.new') }}" class="btn btn-primary">＋ 첫 자가진단 실시</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

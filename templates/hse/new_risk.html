@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ '위험성평가 수정' if item else '신규 위험성평가 등록' }}{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 관리 › 위험성 평가 › {{ '수정' if item else '등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">위험성평가 {{ '수정' if item else '등록' }}</div>
+    <div class="page-subtitle">안전사고 예방을 위해 현장의 유해·위험 요소를 사전에 발굴하고 평가합니다.</div>
+  </div>
+  <a href="{{ url_for('hse.risk') }}" class="btn btn-secondary">
+    <span>↩️ 목록으로</span>
+  </a>
+</div>
+
+<div class="form-container" style="max-width: 700px; margin: 0 auto;">
+  <div class="card-header">
+    <h3 class="card-title">위험성평가서 입력</h3>
+  </div>
+
+  <form action="{{ url_for('hse.edit_risk', rid=item.id) if item else url_for('hse.new_risk') }}" method="POST" class="standard-form">
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+      <div class="form-group">
+        <label for="site" class="form-label">사업장 <span class="text-danger">*</span></label>
+        <select id="site" name="site" class="form-control" required>
+          <option value="본사">본사 (서울)</option>
+          <option value="제조공장">제조공장 (나주)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="work_area" class="form-label">작업 구역 (위치) <span class="text-danger">*</span></label>
+        <input type="text" id="work_area" name="work_area" class="form-control" required placeholder="예: 2층 조립실, 연구소 회로실험실" value="{{ item.work_area if item else '' }}">
+      </div>
+
+    </div>
+
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+      <div class="form-group">
+        <label for="work_type" class="form-label">작업 구분 <span class="text-danger">*</span></label>
+        <input type="text" id="work_type" name="work_type" class="form-control" required placeholder="예: 고전압 장비 조작, 납땜 작업" value="{{ item.work_type if item else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="hazard" class="form-label">유해·위험 요인 (Hazard) <span class="text-danger">*</span></label>
+        <input type="text" id="hazard" name="hazard" class="form-control" required placeholder="예: 전선 피복 노출로 인한 누전, 보호구 미착용" value="{{ item.hazard if item else '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="risk_scenario" class="form-label">예상 재해 시나리오 <span class="text-danger">*</span></label>
+      <textarea id="risk_scenario" name="risk_scenario" rows="2" class="form-control" required placeholder="예: 작업자가 노출된 고전압 전선 접촉 시 감전 사고로 화상 및 사망 위험 존재">{{ item.risk_scenario if item else '' }}</textarea>
+    </div>
+
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); background-color: var(--bg-body); padding: var(--spacing-sm); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+      <div class="form-group">
+        <label for="probability" class="form-label">사고 가능성 (빈도, 1~5) <span class="text-danger">*</span></label>
+        <select id="probability" name="probability" class="form-control" onchange="calculateRisk()">
+          <option value="1">1 (매우 드묾 - 연 1회 미만 발생)</option>
+          <option value="2">2 (가능성 낮음 - 거의 발생하지 않음)</option>
+          <option value="3">3 (보통 - 가끔 발생할 우려가 있음)</option>
+          <option value="4">4 (가능성 높음 - 상시 잠재 위험)</option>
+          <option value="5">5 (매우 높음 - 우려 수준이 매우 큼)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="severity" class="form-label">사고 중대성 (강도, 1~5) <span class="text-danger">*</span></label>
+        <select id="severity" name="severity" class="form-control" onchange="calculateRisk()">
+          <option value="1">1 (치료 불필요 - 아차사고 수준)</option>
+          <option value="2">2 (경미한 상해 - 사내 구급약 처방 가능)</option>
+          <option value="3">3 (병원 치료 - 휴업 재해 발생 우려)</option>
+          <option value="4">4 (중상 재해 - 장기 휴업 및 장애 우려)</option>
+          <option value="5">5 (중대 재해 - 사망 또는 다수 사상자 발생)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin: var(--spacing-sm) 0; font-size: var(--font-sm); font-weight: 500;">
+      평가 위험도: <span id="riskText" style="color: var(--color-primary); font-size: var(--font-lg);">1점</span>
+      (등급 판정: <span id="gradeText" class="badge badge-success">하 (저위험)</span>)
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 가능성과 중대성의 곱이 15점 이상 시 "상(고위험)", 8점 이상 시 "중(중위험)", 그 미만은 "하" 등급으로 분류됩니다.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="control_measure" class="form-label">현재 안전조치 <span class="text-danger">*</span></label>
+      <textarea id="control_measure" name="control_measure" rows="3" class="form-control" required placeholder="예: 작업 전 전선 피복 검사 의무화, 절연 장갑 및 절연 안전화 필수 착용 및 교육 실시">{{ item.control_measure if item else '' }}</textarea>
+    </div>
+
+    <div class="form-actions" style="margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+      <a href="{{ url_for('hse.risk') }}" class="btn btn-secondary">취소</a>
+      <button type="submit" class="btn btn-primary">{{ '수정 저장' if item else '평가 등록' }}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function calculateRisk() {
+  const p = parseInt(document.getElementById('probability').value) || 1;
+  const s = parseInt(document.getElementById('severity').value) || 1;
+  const level = p * s;
+  const riskText = document.getElementById('riskText');
+  const gradeText = document.getElementById('gradeText');
+  riskText.textContent = level + '점';
+  if (level >= 15) {
+    gradeText.textContent = '상 (고위험)';
+    gradeText.className = 'badge badge-danger';
+  } else if (level >= 8) {
+    gradeText.textContent = '중 (중위험)';
+    gradeText.className = 'badge badge-warning';
+  } else {
+    gradeText.textContent = '하 (저위험)';
+    gradeText.className = 'badge badge-success';
+  }
+}
+{% if item %}
+document.getElementById('probability').value = {{ (item.probability or 1)|string|tojson }};
+document.getElementById('severity').value = {{ (item.severity or 1)|string|tojson }};
+document.getElementById('site').value = {{ (item.site or '제조공장')|tojson }};
+{% endif %}
+calculateRisk();
+</script>
+{% endblock %}

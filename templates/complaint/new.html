@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ '클레임 수정' if item else '클레임 접수' }}{% endblock %}
+{% block breadcrumb %}📞 고객 클레임 › {{ '클레임 수정' if item else '클레임 접수' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">고객 클레임 {{ '수정' if item else '접수' }} <span>{{ 'Edit' if item else 'New' }} Complaint</span></div>
+  <a href="{{ url_for('complaint.index') }}" class="btn btn-outline">← 목록으로</a>
+</div>
+
+<div class="card">
+  <div class="card-header">📞 클레임 정보 입력 {% if not item %}(접수번호는 자동 채번됩니다){% endif %}</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('complaint.edit', cid=item.id) if item else url_for('complaint.new') }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">접수일 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="receipt_date" class="form-control" required value="{{ item.receipt_date.strftime('%Y-%m-%d') if item and item.receipt_date else today.strftime('%Y-%m-%d') }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">우선순위 <span style="color:var(--danger)">*</span></label>
+          <select name="priority" class="form-control" required>
+            <option value="normal">일반</option>
+            <option value="high">긴급</option>
+            <option value="low">낮음</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">고객사명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="customer_name" class="form-control" required placeholder="예: (주)○○전자" value="{{ item.customer_name if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">고객 담당자</label>
+          <input type="text" name="contact_person" class="form-control" placeholder="담당자 이름" value="{{ item.contact_person if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">연락처</label>
+          <input type="text" name="contact_info" class="form-control" placeholder="이메일 또는 전화번호" value="{{ item.contact_info if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">제품 / 모델명</label>
+          <input type="text" name="product_model" class="form-control" placeholder="예: IP교환기 NX-500" value="{{ item.product_model if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">클레임 유형 <span style="color:var(--danger)">*</span></label>
+          <select name="complaint_type" class="form-control" required>
+            <option value="">선택하세요</option>
+            <option value="품질불량">품질불량</option>
+            <option value="납기지연">납기지연</option>
+            <option value="서비스불만">서비스불만</option>
+            <option value="규격불일치">규격불일치</option>
+            <option value="포장불량">포장불량</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">관련 ISO 조항</label>
+          <input type="text" name="iso_clause" class="form-control" placeholder="예: 8.7 부적합 출력물 관리" value="{{ item.iso_clause if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">불만 내용 <span style="color:var(--danger)">*</span></label>
+          <textarea name="complaint_content" class="form-control" rows="4" required
+                    placeholder="고객의 불만 사항을 구체적으로 기재하세요.">{{ item.complaint_content if item else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">처리 담당자</label>
+          <select name="responsible_id" class="form-control">
+            <option value="">미지정</option>
+            {% for u in users %}
+            <option value="{{ u.id }}">{{ u.name }} ({{ u.department.name if u.department else '-' }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">처리 기한</label>
+          <input type="date" name="due_date" class="form-control" value="{{ item.due_date.strftime('%Y-%m-%d') if item and item.due_date else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">첨부파일 (클레임 관련 문서, 사진 등)</label>
+          {% if item and item.file_name %}<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">현재 파일: {{ item.file_name }} (새 파일 선택 시 교체)</p>{% endif %}
+          <input type="file" name="file" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg">
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('complaint.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 클레임 접수 등록' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% if item %}
+<script>
+(function () {
+  document.querySelector('select[name="priority"]').value = {{ (item.priority or 'normal')|tojson }};
+  document.querySelector('select[name="complaint_type"]').value = {{ (item.complaint_type or '')|tojson }};
+  document.querySelector('select[name="responsible_id"]').value = {{ (item.responsible_id or '')|tojson }};
+})();
+</script>
+{% endif %}
+{% endblock %}

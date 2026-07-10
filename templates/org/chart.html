@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block breadcrumb %}🏢 조직도 › {{ ctype }}{% endblock %}
+
+{% block content %}
+<style>
+/* ── 조직도 트리 ── */
+.org-scroll { overflow-x:auto; padding:20px 10px 40px; }
+.org-tree, .org-tree ul { list-style:none; margin:0; padding:0; }
+/* 루트 트리를 콘텐츠 너비로 확장 → 좌우 잘림 없이 전체 스크롤 가능 (내용이 좁으면 가운데 정렬) */
+.org-tree { width:max-content; min-width:100%; margin:0 auto; box-sizing:border-box; }
+.org-tree ul { display:flex; justify-content:center; padding-top:22px; position:relative; }
+.org-tree li { position:relative; padding:22px 10px 0; text-align:center; }
+.org-tree li::before, .org-tree li::after { content:''; position:absolute; top:0; right:50%;
+  border-top:2px solid #cbd5e1; width:50%; height:22px; }
+.org-tree li::after { right:auto; left:50%; border-left:2px solid #cbd5e1; }
+.org-tree li:only-child::after, .org-tree li:only-child::before { display:none; }
+.org-tree li:only-child { padding-top:22px; }
+.org-tree li:first-child::before, .org-tree li:last-child::after { border:0 none; }
+.org-tree li:last-child::before { border-right:2px solid #cbd5e1; border-radius:0 6px 0 0; }
+.org-tree li:first-child::after { border-radius:6px 0 0 0; }
+.org-tree ul ul::before { content:''; position:absolute; top:0; left:50%;
+  border-left:2px solid #cbd5e1; width:0; height:22px; }
+.org-node { display:inline-block; min-width:130px; max-width:220px; border:1px solid var(--border);
+  border-top:3px solid #64748b; border-radius:8px; background:#fff; box-shadow:var(--shadow-sm);
+  padding:8px 10px; vertical-align:top; }
+.org-node .u-name { font-weight:700; font-size:0.86rem; }
+.site-badge { display:inline-block; font-size:0.64rem; font-weight:700; padding:1px 6px; border-radius:8px; margin-bottom:3px; }
+.org-node .u-leader { font-size:0.8rem; margin-top:3px; }
+.org-node .u-title { font-size:0.68rem; color:var(--text-muted); }
+.org-members { margin-top:6px; border-top:1px dashed var(--border-light); padding-top:5px;
+  display:flex; flex-wrap:wrap; gap:3px 6px; justify-content:center; }
+.org-person { cursor:default; font-size:0.78rem; border-radius:4px; padding:0 3px; }
+.org-person.has-duty { border-bottom:1.5px dotted #2563eb; cursor:help; }
+.org-person:hover { background:#eff6ff; }
+.org-edit-btns { display:none; margin-top:6px; gap:3px; flex-wrap:wrap; justify-content:center; }
+.org-editing .org-edit-btns { display:flex; }
+.org-mini { font-size:0.66rem; padding:1px 6px; border-radius:4px; border:1px solid var(--border);
+  background:#fff; cursor:pointer; line-height:1.5; }
+.org-mini:hover { background:var(--bg-base); }
+.org-mini.del { color:#dc2626; border-color:#fca5a5; }
+/* 인라인 일괄 편집 */
+.org-inline { display:none; text-align:left; }
+.org-editing .org-view { display:none; }
+.org-editing .org-inline { display:block; }
+.org-editing .org-node { min-width:214px; max-width:250px; }
+.oe-in { width:100%; border:1px solid #cbd5e1; border-radius:4px; padding:2px 5px; font-size:0.76rem; margin-bottom:3px; box-sizing:border-box; }
+.oe-in:focus { outline:none; border-color:#2563eb; background:#f8fafc; }
+.oe-name { font-weight:700; }
+.oe-duty { color:#334155; }
+.oe-row { display:flex; gap:4px; align-items:center; margin-bottom:3px; }
+.oe-mrow { display:flex; gap:3px; align-items:center; margin-bottom:2px; }
+.oe-mrow .oe-in { margin-bottom:0; }
+.oe-x { border:none; background:#fee2e2; color:#dc2626; border-radius:4px; cursor:pointer; font-size:0.9rem; line-height:1; padding:0 6px; }
+.org-struct-btns { display:flex; gap:3px; flex-wrap:wrap; justify-content:center; margin-top:6px; padding-top:5px; border-top:1px dashed var(--border-light); }
+.oe-row2 { display:flex; gap:5px; align-items:center; margin-bottom:3px; }
+.oe-lb { font-size:0.68rem; color:var(--text-muted); white-space:nowrap; }
+.oe-newunit { border:1px dashed #2563eb; border-radius:6px; padding:6px; margin-top:5px; background:#f8fbff; }
+.oe-newunit .oe-in { margin-bottom:3px; }
+.oe-mrow.oe-del { opacity:.5; }
+.oe-mrow.oe-del .oe-in { text-decoration:line-through; }
+.oe-new .oe-in { background:#f0fdf4; }
+.org-node.oe-delnode { outline:2px solid #dc2626; opacity:.55; }
+#newsub-root { display:none; max-width:260px; margin:0 auto 16px; }
+.org-editing #newsub-root:not(:empty) { display:block; }
+/* 하단 저장 바 */
+#orgSaveBar { position:fixed; bottom:0; left:var(--sidebar-w); right:0; background:#0f172a; color:#fff;
+  display:none; align-items:center; justify-content:space-between; padding:10px 24px; z-index:1500;
+  box-shadow:0 -4px 16px rgba(0,0,0,.25); }
+.org-editing #orgSaveBar { display:flex; }
+/* 업무분장 툴팁 */
+#dutyTip { position:fixed; z-index:3000; max-width:300px; background:#0f172a; color:#fff;
+  font-size:0.78rem; line-height:1.5; padding:8px 12px; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.3);
+  display:none; pointer-events:none; }
+#dutyTip .dt-name { font-weight:700; margin-bottom:3px; color:#7dd3fc; }
+/* 모달 */
+.org-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2500;
+  display:none; align-items:center; justify-content:center; }
+.org-modal-bg.open { display:flex; }
+.org-modal { background:#fff; border-radius:12px; width:440px; max-width:94vw; max-height:90vh;
+  overflow:auto; padding:22px; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+.org-modal h3 { margin:0 0 14px; font-size:1.05rem; }
+</style>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ title }}</div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ desc }}</p>
+  </div>
+  {% if can_edit %}
+  <button class="btn btn-primary" id="editToggle" onclick="toggleEdit()">✏️ 편집 모드</button>
+  {% endif %}
+</div>
+
+<!-- 조직도 탭 -->
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
+  {% for s, ct in slugs.items() %}
+  <a href="{{ url_for('org.chart', slug=s) }}" class="btn btn-sm {% if s==slug %}btn-primary{% else %}btn-secondary{% endif %}">
+    {{ {'전체':'🏢 전체','품질':'✅ 품질','환경':'🌿 환경','안전보건':'⛑️ 안전보건'}[ct] }} 조직도
+  </a>
+  {% endfor %}
+</div>
+
+{% if can_edit %}
+<div id="editHelp" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#1e40af;">
+  편집 모드: 각 조직의 <strong>✏️수정 · ＋인원 · ＋하위 · ↕이동 · 🗑삭제</strong> 버튼과 구성원 클릭으로 수정합니다.
+  이름에 업무분장을 입력하면 마우스 오버 시 표시됩니다.
+</div>
+{% endif %}
+
+{% macro node(u) %}
+<li>
+  <div class="org-node" style="{% if u.color %}border-top-color:{{ u.color }};{% endif %}">
+    {% if u.site %}
+    <span class="site-badge" style="background:{{ '#e0f2fe' if u.site=='본사' else '#ffedd5' }};color:{{ '#0369a1' if u.site=='본사' else '#c2410c' }};">
+      {{ '🏢 본사' if u.site=='본사' else '🏭 제조센터' }}
+    </span>
+    {% endif %}
+
+    {# ── 보기 모드 ── #}
+    <div class="org-view">
+      <div class="u-name" style="{% if u.color %}color:{{ u.color }};{% endif %}">{{ u.name }}</div>
+      {% if u.leader %}
+      <div class="u-leader">
+        <span class="org-person {% if u.leader_duty %}has-duty{% endif %}" data-name="{{ u.leader }}{% if u.leader_title %} ({{ u.leader_title }}){% endif %}" data-duty="{{ u.leader_duty or '' }}">{{ u.leader }}</span>
+        {% if u.leader_title %}<span class="u-title">{{ u.leader_title }}</span>{% endif %}
+      </div>
+      {% elif u.leader_title %}<div class="u-title">{{ u.leader_title }}</div>{% endif %}
+      {% set mem = u.members.all() %}
+      {% if mem %}
+      <div class="org-members">
+        {% for m in mem %}
+        <span class="org-person {% if m.duty %}has-duty{% endif %}"
+              data-name="{{ m.name }}{% if m.role %} · {{ m.role }}{% endif %}" data-duty="{{ m.duty or '' }}">{{ m.name }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if can_edit %}
+    {# ── 인라인 편집 모드 (모든 변경은 '전체 저장'에 반영) ── #}
+    <div class="org-inline" id="uinl-{{ u.id }}">
+      <input class="oe-in oe-name" data-k="u|{{ u.id }}|name" value="{{ u.name }}" placeholder="조직명">
+      <div class="oe-row">
+        <input class="oe-in" data-k="u|{{ u.id }}|leader" value="{{ u.leader or '' }}" placeholder="책임자" style="flex:1;">
+        <span class="u-title" style="white-space:nowrap;">{{ u.leader_title or '' }}</span>
+      </div>
+      <input class="oe-in oe-duty" data-k="u|{{ u.id }}|leader_duty" value="{{ u.leader_duty or '' }}" placeholder="책임자 업무분장">
+      <div class="oe-row2">
+        <label class="oe-lb">사업장</label>
+        <select class="oe-in" data-k="u|{{ u.id }}|site">
+          <option value="" {% if not u.site %}selected{% endif %}>공통</option>
+          <option value="본사" {% if u.site=='본사' %}selected{% endif %}>🏢 본사</option>
+          <option value="제조센터" {% if u.site=='제조센터' %}selected{% endif %}>🏭 제조센터</option>
+        </select>
+      </div>
+
+      {# 구성원 #}
+      <div class="oe-members" id="mem-{{ u.id }}">
+        {% for m in u.members.all() %}
+        <div class="oe-mrow">
+          <input class="oe-in" data-k="m|{{ m.id }}|name" value="{{ m.name }}" placeholder="이름" style="width:54px;">
+          <input class="oe-in" data-k="m|{{ m.id }}|role" value="{{ m.role or '' }}" placeholder="직책" style="width:48px;">
+          <input class="oe-in" data-k="m|{{ m.id }}|duty" value="{{ m.duty or '' }}" placeholder="업무분장" style="flex:1;">
+          <input type="hidden" class="oe-in" data-k="del_m|{{ m.id }}" value="0">
+          <button type="button" class="oe-x" title="삭제 표시" onclick="toggleDelM(this)">×</button>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="org-struct-btns">
+        <button type="button" class="org-mini" onclick="addMember({{ u.id }})">＋인원</button>
+        <button type="button" class="org-mini" onclick="addSub({{ u.id }})">＋하위조직</button>
+      </div>
+      <div class="oe-newsub" id="newsub-{{ u.id }}"></div>
+
+      <div class="oe-row2" style="margin-top:5px;">
+        <label class="oe-lb">상위</label>
+        <select class="oe-in oe-parent" data-k="u|{{ u.id }}|parent" data-cur="{{ u.parent_id or '' }}" data-self="{{ u.id }}" style="flex:1;"></select>
+        <button type="button" class="org-mini del" onclick="toggleDelU(this,{{ u.id }})">🗑</button>
+        <input type="hidden" class="oe-in" data-k="del_u|{{ u.id }}" value="0">
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% set kids = u.children.all() %}
+  {% if kids %}
+  <ul>{% for c in kids %}{{ node(c) }}{% endfor %}</ul>
+  {% endif %}
+</li>
+{% endmacro %}
+
+<div class="card">
+  <div class="org-scroll">
+    {% if roots %}
+    <ul class="org-tree">
+      {% for r in roots %}{{ node(r) }}{% endfor %}
+    </ul>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:var(--text-muted);">등록된 조직이 없습니다.
+      {% if can_edit %}<br><button type="button" class="btn btn-sm btn-primary" style="margin-top:10px;" onclick="addSub('root')">＋ 최상위 조직 추가</button>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% if can_edit %}<div class="oe-newsub" id="newsub-root"></div>{% endif %}
+
+<!-- 업무분장 툴팁 -->
+<div id="dutyTip"><div class="dt-name"></div><div class="dt-body"></div></div>
+
+{% if can_edit %}
+<!-- 하단 일괄 저장 바 -->
+<div id="orgSaveBar">
+  <span style="font-size:0.86rem;">✏️ 편집 모드 — 수정·＋인원·＋하위조직·상위이동·🗑삭제표시를 자유롭게 한 뒤 <strong>전체 저장</strong> 한 번으로 반영됩니다.</span>
+  <span style="display:flex;gap:10px;">
+    <button class="btn btn-outline btn-sm" style="color:#fff;border-color:#475569;" onclick="addSub('root')">＋ 최상위 조직</button>
+    <button class="btn btn-outline btn-sm" style="color:#fff;border-color:#475569;" onclick="toggleEdit()">편집 종료</button>
+    <button class="btn btn-success" onclick="bulkSave()">💾 전체 저장</button>
+  </span>
+</div>
+{% endif %}
+
+{% if can_edit %}
+<!-- 조직 추가/수정 모달 -->
+<div class="org-modal-bg" id="unitModal">
+  <div class="org-modal">
+    <h3 id="unitModalTitle">조직</h3>
+    <form method="POST" id="unitForm">
+      <input type="hidden" name="parent_id" id="u_parent">
+      <div class="form-row" style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+        <div class="form-group"><label class="form-label">조직/직위 명 *</label>
+          <input type="text" name="name" id="u_name" class="form-control" required></div>
+        <div class="form-group"><label class="form-label">사업장</label>
+          <select name="site" id="u_site" class="form-control">
+            <option value="">공통/전사</option>
+            <option value="본사">🏢 본사(서울)</option>
+            <option value="제조센터">🏭 제조센터(나주)</option>
+          </select></div>
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label class="form-label">책임자 이름</label>
+          <input type="text" name="leader" id="u_leader" class="form-control"></div>
+        <div class="form-group"><label class="form-label">직함</label>
+          <input type="text" name="leader_title" id="u_title" class="form-control" placeholder="팀장/파트장 등"></div>
+      </div>
+      <div class="form-group" id="u_dutyWrap"><label class="form-label">책임자 업무분장</label>
+        <textarea name="leader_duty" id="u_duty" class="form-control" rows="2"></textarea></div>
+      <div class="form-group" id="u_colorWrap"><label class="form-label">박스 강조색 (선택)</label>
+        <input type="text" name="color" id="u_color" class="form-control" placeholder="#2563eb"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('unitModal')">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 구성원 추가/수정 모달 -->
+<div class="org-modal-bg" id="memberModal">
+  <div class="org-modal">
+    <h3 id="memberModalTitle">구성원</h3>
+    <form method="POST" id="memberForm">
+      <input type="hidden" name="unit_id" id="m_unit">
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group"><label class="form-label">이름 *</label>
+          <input type="text" name="name" id="m_name" class="form-control" required></div>
+        <div class="form-group"><label class="form-label">직책/역할</label>
+          <input type="text" name="role" id="m_role" class="form-control" placeholder="사원/담당 등"></div>
+      </div>
+      <div class="form-group"><label class="form-label">업무분장 (마우스 오버 시 표시)</label>
+        <textarea name="duty" id="m_duty" class="form-control" rows="3" placeholder="담당 업무를 입력하세요"></textarea></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;">
+        <form method="POST" id="memberDeleteForm" style="display:inline;" onsubmit="return confirm('구성원을 삭제하시겠습니까?');">
+          <button type="submit" class="btn btn-danger" id="m_delBtn" style="display:none;">🗑️ 삭제</button>
+        </form>
+        <div style="display:flex;gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('memberModal')">취소</button>
+          <button type="submit" class="btn btn-primary" form="memberForm">저장</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 이동(라인 변경) 모달 -->
+<div class="org-modal-bg" id="moveModal">
+  <div class="org-modal">
+    <h3 id="moveModalTitle">조직 이동</h3>
+    <form method="POST" id="moveForm">
+      <div class="form-group"><label class="form-label">상위 조직 (라인) 변경</label>
+        <select name="parent_id" class="form-control" id="mv_parent">
+          <option value="">— 최상위 —</option>
+          {% for u in all_units %}<option value="{{ u.id }}">{{ '　' * (u.leader_title=='') }}{{ u.name }}{% if u.leader %} ({{ u.leader }}){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+        <button type="submit" name="dir" value="up" class="btn btn-outline">↑ 위로</button>
+        <button type="submit" name="dir" value="down" class="btn btn-outline">↓ 아래로</button>
+        <button type="submit" class="btn btn-primary">상위조직 변경 저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// 편집 모드 토글
+function toggleEdit(){
+  document.body.classList.toggle('org-editing');
+  var on = document.body.classList.contains('org-editing');
+  var btn=document.getElementById('editToggle'); if(btn) btn.textContent = on ? '✓ 편집 종료' : '✏️ 편집 모드';
+  var h = document.getElementById('editHelp'); if(h) h.style.display = on ? 'block' : 'none';
+  document.body.style.paddingBottom = on ? '64px' : '';
+  {% if can_edit %}if(on) populateParents();{% endif %}
+}
+{% if can_edit %}
+var ALL_UNITS = [{% for x in all_units %}{id:{{ x.id }},name:{{ x.name|tojson }},leader:{{ (x.leader or '')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
+var TMP = 0;
+
+// 상위조직 select 채우기(자기 자신 제외)
+function populateParents(){
+  document.querySelectorAll('.oe-parent').forEach(function(sel){
+    if(sel.dataset.filled) return;
+    var self=sel.getAttribute('data-self'), cur=sel.getAttribute('data-cur');
+    var html='<option value="">— 최상위 —</option>';
+    ALL_UNITS.forEach(function(u){
+      if(String(u.id)===String(self)) return;
+      var lab=u.name+(u.leader?(' ('+u.leader+')'):'');
+      html+='<option value="'+u.id+'"'+(String(u.id)===String(cur)?' selected':'')+'>'+lab+'</option>';
+    });
+    sel.innerHTML=html; sel.dataset.filled='1';
+  });
+}
+// 인원 추가(빈 행) — 전체 저장에 포함
+function addMember(uid){
+  var i=++TMP, box=document.getElementById('mem-'+uid);
+  var row=document.createElement('div'); row.className='oe-mrow oe-new';
+  row.innerHTML='<input class="oe-in" data-k="newm|'+i+'|name" placeholder="이름" style="width:54px;">'+
+    '<input class="oe-in" data-k="newm|'+i+'|role" placeholder="직책" style="width:48px;">'+
+    '<input class="oe-in" data-k="newm|'+i+'|duty" placeholder="업무분장" style="flex:1;">'+
+    '<input type="hidden" class="oe-in" data-k="newm|'+i+'|unit" value="'+uid+'">'+
+    '<button type="button" class="oe-x" onclick="this.parentNode.remove()">×</button>';
+  box.appendChild(row); row.querySelector('input').focus();
+}
+// 하위조직 추가 — 전체 저장에 포함 (uid='root'이면 최상위)
+function addSub(uid){
+  var i=++TMP, pv=(uid==='root')?'':uid, box=document.getElementById('newsub-'+uid);
+  var b=document.createElement('div'); b.className='oe-newunit';
+  b.innerHTML='<div style="font-size:0.7rem;color:#2563eb;font-weight:700;margin-bottom:3px;">＋ 새 '+(uid==='root'?'최상위':'하위')+'조직</div>'+
+    '<input class="oe-in" data-k="newu|'+i+'|name" placeholder="조직명">'+
+    '<input class="oe-in" data-k="newu|'+i+'|leader" placeholder="책임자">'+
+    '<input class="oe-in" data-k="newu|'+i+'|title" placeholder="직함(팀장 등)">'+
+    '<select class="oe-in" data-k="newu|'+i+'|site"><option value="">공통</option><option value="본사">🏢 본사</option><option value="제조센터">🏭 제조센터</option></select>'+
+    '<input type="hidden" class="oe-in" data-k="newu|'+i+'|parent" value="'+pv+'">'+
+    '<button type="button" class="org-mini del" onclick="this.parentNode.remove()">취소</button>';
+  box.appendChild(b); b.querySelector('input').focus();
+}
+// 삭제 표시 토글 (전체 저장 시 반영)
+function toggleDelM(btn){
+  var row=btn.closest('.oe-mrow'), h=row.querySelector('input[type=hidden]');
+  var on=h.value==='1'; h.value=on?'0':'1'; row.classList.toggle('oe-del',!on);
+}
+function toggleDelU(btn, uid){
+  var inl=document.getElementById('uinl-'+uid), h=inl.querySelector('input[data-k="del_u|'+uid+'"]');
+  var on=h.value==='1'; h.value=on?'0':'1'; btn.closest('.org-node').classList.toggle('oe-delnode',!on);
+}
+// 일괄 저장: 모든 편집 입력(.oe-in)을 모아 한 번에 POST
+function bulkSave(){
+  var f=document.createElement('form'); f.method='POST'; f.action='{{ url_for("org.bulk_save", slug=slug) }}';
+  document.querySelectorAll('.oe-in').forEach(function(inp){
+    if(!inp.getAttribute('data-k')) return;
+    var h=document.createElement('input'); h.type='hidden'; h.name=inp.getAttribute('data-k'); h.value=inp.value; f.appendChild(h);
+  });
+  var meta=document.querySelector('meta[name="csrf-token"]');
+  if(meta){ var c=document.createElement('input'); c.type='hidden'; c.name='csrf_token'; c.value=meta.getAttribute('content'); f.appendChild(c); }
+  document.body.appendChild(f); f.submit();
+}
+// 저장 후에도 편집 모드 유지 (?edit=1)
+if(new URLSearchParams(location.search).get('edit')==='1'){ toggleEdit(); }
+{% endif %}
+// 업무분장 툴팁
+(function(){
+  var tip=document.getElementById('dutyTip');
+  document.addEventListener('mouseover', function(e){
+    var el=e.target.closest('.org-person'); if(!el) return;
+    var duty=el.getAttribute('data-duty');
+    if(!duty || document.body.classList.contains('org-editing')) return;
+    tip.querySelector('.dt-name').textContent=el.getAttribute('data-name')||el.textContent;
+    tip.querySelector('.dt-body').textContent=duty;
+    tip.style.display='block';
+  });
+  document.addEventListener('mousemove', function(e){
+    if(tip.style.display!=='block') return;
+    var x=e.clientX+14, y=e.clientY+16;
+    if(x+310>window.innerWidth) x=e.clientX-310;
+    tip.style.left=x+'px'; tip.style.top=y+'px';
+  });
+  document.addEventListener('mouseout', function(e){
+    if(e.target.closest('.org-person')) tip.style.display='none';
+  });
+})();
+{% if can_edit %}
+var SLUG='{{ slug }}';
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function openUnit(mode, parentId, name, leader, title, duty, color, site){
+  var f=document.getElementById('unitForm');
+  document.getElementById('u_parent').value = (mode==='add') ? (parentId||'') : '';
+  if(mode==='add'){
+    document.getElementById('unitModalTitle').textContent='＋ 하위 조직 추가';
+    f.action='{{ url_for("org.unit_add", slug=slug) }}';
+    document.getElementById('u_name').value=''; document.getElementById('u_leader').value='';
+    document.getElementById('u_title').value=''; document.getElementById('u_duty').value='';
+    document.getElementById('u_color').value=''; document.getElementById('u_site').value='';
+    document.getElementById('u_dutyWrap').style.display='none';
+  } else {
+    document.getElementById('unitModalTitle').textContent='✏️ 조직 수정';
+    f.action='/org/'+SLUG+'/unit/'+parentId+'/edit';
+    document.getElementById('u_name').value=name||''; document.getElementById('u_leader').value=leader||'';
+    document.getElementById('u_title').value=title||''; document.getElementById('u_duty').value=duty||'';
+    document.getElementById('u_color').value=color||''; document.getElementById('u_site').value=site||'';
+    document.getElementById('u_dutyWrap').style.display='block';
+  }
+  injectCsrf(f);
+  document.getElementById('unitModal').classList.add('open');
+}
+function openMember(mode, arg){
+  var f=document.getElementById('memberForm');
+  var delBtn=document.getElementById('m_delBtn');
+  if(mode==='add'){
+    document.getElementById('memberModalTitle').textContent='＋ 구성원 추가';
+    f.action='{{ url_for("org.member_add", slug=slug) }}';
+    document.getElementById('m_unit').value=arg;
+    document.getElementById('m_name').value=''; document.getElementById('m_role').value=''; document.getElementById('m_duty').value='';
+    delBtn.style.display='none';
+  } else {
+    var el=arg;
+    var mid=el.getAttribute('data-mid');
+    document.getElementById('memberModalTitle').textContent='✏️ 구성원 수정';
+    f.action='/org/'+SLUG+'/member/'+mid+'/edit';
+    document.getElementById('m_name').value=el.getAttribute('data-mname')||'';
+    document.getElementById('m_role').value=el.getAttribute('data-mrole')||'';
+    document.getElementById('m_duty').value=el.getAttribute('data-mduty')||'';
+    var df=document.getElementById('memberDeleteForm');
+    df.action='/org/'+SLUG+'/member/'+mid+'/delete'; injectCsrf(df);
+    delBtn.style.display='inline-block';
+  }
+  injectCsrf(f);
+  document.getElementById('memberModal').classList.add('open');
+}
+function openMove(uid, name){
+  var f=document.getElementById('moveForm');
+  document.getElementById('moveModalTitle').textContent='↕ ['+name+'] 이동';
+  f.action='/org/'+SLUG+'/unit/'+uid+'/move'; injectCsrf(f);
+  document.getElementById('moveModal').classList.add('open');
+}
+// CSRF 토큰 주입(모달 폼은 동적 action이라 명시 주입)
+function injectCsrf(f){
+  if(f.querySelector('input[name="csrf_token"]')) return;
+  var meta=document.querySelector('meta[name="csrf-token"]'); if(!meta) return;
+  var i=document.createElement('input'); i.type='hidden'; i.name='csrf_token'; i.value=meta.getAttribute('content'); f.appendChild(i);
+}
+document.querySelectorAll('.org-modal-bg').forEach(function(bg){
+  bg.addEventListener('click', function(e){ if(e.target===bg) bg.classList.remove('open'); });
+});
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}회의록 목록{% endblock %}
+{% block breadcrumb %}📋 부서별 기록 › 회의록 › 전체 목록{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">회의록 목록 <span>Meeting Minutes</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">개최된 회의의 회의록을 조회합니다.</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('meeting.index') }}" class="btn btn-outline">← 필수회의 대장</a>
+    {% if current_user.has_edit() %}
+    <a href="{{ url_for('meeting.new') }}" class="btn btn-primary">＋ 회의록 작성</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 회의종류 필터 -->
+<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
+  <a href="{{ url_for('meeting.records') }}" class="btn btn-sm {% if not type_id %}btn-primary{% else %}btn-secondary{% endif %}">전체</a>
+  {% for t in types %}
+  <a href="{{ url_for('meeting.records', type_id=t.id) }}" class="btn btn-sm {% if type_id==t.id %}btn-primary{% else %}btn-secondary{% endif %}">{{ t.name }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">총 {{ items|length }}건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>번호</th><th>회의종류</th><th>제목</th><th>개최일</th>
+          <th>장소</th><th>주재자</th><th>작성자</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in items %}
+      <tr style="cursor:pointer;" onclick="location.href='{{ url_for('meeting.detail', rec_id=r.id) }}'">
+        <td style="font-family:monospace;font-size:0.78rem;color:var(--accent);">{{ r.record_number }}</td>
+        <td>{% if r.meeting_type %}<span class="status-badge status-active">{{ r.meeting_type.name }}</span>{% else %}<span class="status-badge status-draft">기타</span>{% endif %}</td>
+        <td style="font-weight:600;">{{ r.title or '-' }}</td>
+        <td class="date-cell">{{ r.meeting_date or '-' }}</td>
+        <td>{{ r.location or '-' }}</td>
+        <td>{{ r.chair or '-' }}</td>
+        <td>{{ r.created_by.name if r.created_by else '-' }}</td>
+        <td><a href="{{ url_for('meeting.detail', rec_id=r.id) }}" class="btn btn-outline btn-sm">상세</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-cell">📋 등록된 회의록이 없습니다.<br>필수회의 대장에서 <strong>＋ 회의록</strong> 버튼으로 작성하세요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

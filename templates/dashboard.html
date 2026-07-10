@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}상태 보드{% endblock %}
+{% block breadcrumb %}🏠 통합경영시스템 상태 보드{% endblock %}
+
+{% block content %}
+<style>
+/* ═══ 대시보드 전용 스코프 (.imsdash) ═══ */
+.imsdash{ --q:#1e5eb8; --e:#1f9d57; --s:#e0761b; --alert:#d64545;
+  --ink:#0f2240; --ink2:#14325c; --muted:#5b6b80; --line:#dce3ec; --surface:#fff;
+  --mono:ui-monospace,'SFMono-Regular','Consolas','Menlo',monospace;
+  margin:-4px -4px 0; }
+.imsdash *{ box-sizing:border-box; }
+.imsdash .num{ font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-0.02em; }
+
+/* ── 상태 보드 (시그니처) ── */
+.imsboard{ background:linear-gradient(135deg,var(--ink) 0%,var(--ink2) 100%); color:#fff;
+  border-radius:16px; padding:22px 26px; display:grid; grid-template-columns:1.15fr 1fr; gap:26px;
+  box-shadow:0 18px 40px -22px rgba(15,34,64,.65); position:relative; overflow:hidden; }
+.imsboard::after{ content:""; position:absolute; inset:0; background:
+  radial-gradient(500px 180px at 88% -10%, rgba(96,165,250,.20), transparent 70%); pointer-events:none; }
+.board-eyebrow{ font-size:.66rem; letter-spacing:.22em; color:#8fb3e6; font-weight:700; }
+.board-title{ font-size:1.5rem; font-weight:800; margin:6px 0 3px; letter-spacing:-.01em; }
+.board-sub{ font-size:.8rem; color:#b9c9de; }
+.board-standards{ display:flex; gap:12px; margin-top:18px; }
+.pillar{ flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+  border-top:3px solid var(--c); border-radius:10px; padding:11px 12px; }
+.pillar .p-label{ font-size:.64rem; letter-spacing:.12em; font-weight:800; color:var(--c-l); }
+.pillar .p-name{ font-size:.72rem; color:#cdd9ea; margin-top:1px; }
+.pillar .p-num{ font-size:1.7rem; font-weight:800; margin-top:6px; line-height:1; }
+.pillar .p-state{ font-size:.68rem; color:#a7d8bb; margin-top:6px; display:flex; align-items:center; gap:5px; }
+.p-q{ --c:#3b82f6; --c-l:#93c5fd; } .p-e{ --c:#22c55e; --c-l:#86efac; } .p-s{ --c:#f59e0b; --c-l:#fcd34d; }
+.dot{ width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.18); }
+.dot.warn{ background:#f87171; box-shadow:0 0 0 3px rgba(248,113,113,.2); animation:pulse 1.6s infinite; }
+@keyframes pulse{ 0%,100%{box-shadow:0 0 0 3px rgba(248,113,113,.18)} 50%{box-shadow:0 0 0 6px rgba(248,113,113,0)} }
+
+.board-alert{ align-self:center; display:flex; flex-direction:column; gap:12px;
+  border-left:1px solid rgba(255,255,255,.12); padding-left:26px; }
+.alert-num{ font-size:4.2rem; font-weight:800; line-height:.9; color:#fff; }
+.alert-num.zero{ color:#5eead4; }
+.alert-label{ font-size:.86rem; color:#cdd9ea; margin-top:-4px; }
+.alert-chips{ display:flex; flex-wrap:wrap; gap:7px; margin-top:2px; }
+.a-chip{ font-size:.72rem; font-weight:700; padding:3px 10px; border-radius:20px;
+  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); }
+.a-chip b{ font-family:var(--mono); }
+.a-chip.red{ color:#fca5a5; border-color:rgba(248,113,113,.4); }
+.a-chip.amber{ color:#fcd34d; border-color:rgba(245,158,11,.4); }
+.a-chip.blue{ color:#93c5fd; border-color:rgba(59,130,246,.4); }
+
+/* ── KPI 리드아웃 ── */
+.kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:16px; }
+.kpi{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:15px 16px 13px;
+  position:relative; overflow:hidden; transition:transform .15s,box-shadow .15s; }
+.kpi::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--c); }
+.kpi:hover{ transform:translateY(-3px); box-shadow:0 14px 26px -18px rgba(15,34,64,.4); }
+.kpi.q{ --c:var(--q);} .kpi.r{ --c:var(--alert);} .kpi.s{ --c:var(--s);} .kpi.e{ --c:var(--e);}
+.kpi-eyebrow{ font-size:.66rem; letter-spacing:.12em; font-weight:800; color:var(--c); text-transform:uppercase; }
+.kpi-num{ font-size:2.3rem; font-weight:800; color:var(--ink); line-height:1; margin:8px 0 2px; }
+.kpi-label{ font-size:.82rem; font-weight:600; color:#33465e; }
+.kpi-sub{ font-size:.72rem; color:var(--muted); margin-top:3px; }
+.kpi-sub.danger{ color:var(--alert); font-weight:700; }
+.kpi-link{ position:absolute; top:14px; right:14px; font-size:.72rem; color:var(--muted); text-decoration:none; }
+.kpi-link:hover{ color:var(--c); }
+
+/* ── 섹션 라벨 ── */
+.dash-h{ display:flex; align-items:center; gap:9px; margin:26px 2px 12px; }
+.dash-h .bar{ width:4px; height:16px; border-radius:2px; background:var(--ink); }
+.dash-h h3{ font-size:1rem; font-weight:800; color:var(--ink); margin:0; letter-spacing:-.01em; }
+.dash-h .count{ font-family:var(--mono); font-size:.74rem; color:#fff; background:var(--alert);
+  border-radius:20px; padding:1px 9px; font-weight:700; }
+.dash-h .more{ margin-left:auto; font-size:.76rem; color:var(--muted); text-decoration:none; }
+.dash-h .more:hover{ color:var(--q); }
+
+/* ── 패널 ── */
+.panel{ background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+
+/* 워크리스트 */
+.wl{ max-height:460px; overflow-y:auto; }
+.wl-item{ display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid #eef1f6;
+  text-decoration:none; color:inherit; border-left:3px solid transparent; transition:background .12s; }
+.wl-item:hover{ background:#f7f9fc; }
+.wl-item.danger{ border-left-color:var(--alert); }
+.wl-item.warning{ border-left-color:var(--s); }
+.wl-item.info{ border-left-color:var(--q); }
+.wl-ico{ width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:1rem; flex-shrink:0; }
+.wl-item.danger .wl-ico{ background:#fdecec; } .wl-item.warning .wl-ico{ background:#fdf1e3; } .wl-item.info .wl-ico{ background:#e9f1fb; }
+.wl-title{ font-size:.82rem; font-weight:600; color:#1f2f45; line-height:1.3; }
+.wl-detail{ font-size:.73rem; color:var(--muted); margin-top:2px; }
+.wl-arrow{ margin-left:auto; color:#c2ccd8; font-size:1.1rem; }
+.wl-empty{ text-align:center; padding:48px 20px; color:var(--muted); }
+.wl-empty .e-ico{ font-size:2.4rem; }
+
+/* 부서 타일 */
+.dept-row{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+.dept-tile{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:15px 12px;
+  text-align:center; text-decoration:none; transition:transform .15s,box-shadow .15s; display:block; }
+.dept-tile:hover{ transform:translateY(-3px); box-shadow:0 12px 22px -16px rgba(15,34,64,.4); }
+.dept-tile .d-ico{ font-size:1.4rem; }
+.dept-tile .d-num{ font-size:1.5rem; font-weight:800; color:var(--ink); margin-top:4px; line-height:1; }
+.dept-tile .d-label{ font-size:.74rem; color:#33465e; margin-top:5px; font-weight:600; }
+.dept-tile .d-sub{ font-size:.68rem; color:var(--muted); margin-top:2px; }
+
+@media (max-width:1100px){
+  .imsboard{ grid-template-columns:1fr; }
+  .board-alert{ border-left:0; border-top:1px solid rgba(255,255,255,.12); padding-left:0; padding-top:16px; }
+  .kpi-row,.dept-row{ grid-template-columns:repeat(2,1fr); }
+}
+@media (prefers-reduced-motion:reduce){ .dot.warn{ animation:none; } .kpi{ transition:none; } }
+</style>
+
+<div class="imsdash">
+
+  <!-- ══ 시그니처: 통합경영시스템 상태 보드 ══ -->
+  <section class="imsboard">
+    <div>
+      <div class="board-eyebrow">INTEGRATED MANAGEMENT SYSTEM · {{ today.strftime('%Y.%m.%d') }}</div>
+      <h1 class="board-title">통합경영시스템 상태 보드</h1>
+      <div class="board-sub">{{ current_user.name }}님 · {{ current_user.department.name if current_user.department else '누리보이스' }}</div>
+      <div class="board-standards">
+        <div class="pillar p-q">
+          <div class="p-label">ISO 9001</div><div class="p-name">품질경영</div>
+          <div class="p-num num">{{ doc_stats.q9001 }}</div>
+          <div class="p-state"><span class="dot"></span> 운영중 · 문서</div>
+        </div>
+        <div class="pillar p-e">
+          <div class="p-label">ISO 14001</div><div class="p-name">환경경영</div>
+          <div class="p-num num">{{ doc_stats.e14001 }}</div>
+          <div class="p-state"><span class="dot"></span> 운영중 · 문서</div>
+        </div>
+        <div class="pillar p-s">
+          <div class="p-label">ISO 45001</div><div class="p-name">안전보건경영</div>
+          <div class="p-num num">{{ doc_stats.s45001 }}</div>
+          <div class="p-state"><span class="dot"></span> 운영중 · 문서</div>
+        </div>
+      </div>
+    </div>
+    <div class="board-alert">
+      <div class="alert-num num {% if urgent_items|length == 0 %}zero{% endif %}" data-count="{{ urgent_items|length }}">{{ urgent_items|length }}</div>
+      <div class="alert-label">지금 조치가 필요한 항목</div>
+      <div class="alert-chips">
+        <span class="a-chip red">CAPA 기한초과 <b>{{ capa_stats.overdue }}</b></span>
+        <span class="a-chip amber">미처리 클레임 <b>{{ dept_stats.complaint_open }}</b></span>
+        <span class="a-chip blue">심사 임박 <b>{{ audit_stats.upcoming }}</b></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ KPI 리드아웃 ══ -->
+  <div class="kpi-row">
+    <article class="kpi q">
+      <a class="kpi-link" href="{{ url_for('documents.index') }}">문서 관리 →</a>
+      <div class="kpi-eyebrow">Documents</div>
+      <div class="kpi-num num">{{ doc_stats.total }}</div>
+      <div class="kpi-label">배포 중인 문서</div>
+      <div class="kpi-sub">초안 {{ doc_stats.draft }} · 검토중 {{ doc_stats.review }}</div>
+    </article>
+    <article class="kpi r">
+      <a class="kpi-link" href="{{ url_for('audit.capa_list') }}">시정조치 →</a>
+      <div class="kpi-eyebrow">CAPA</div>
+      <div class="kpi-num num">{{ capa_stats.open + capa_stats.in_progress }}</div>
+      <div class="kpi-label">미결 시정조치</div>
+      <div class="kpi-sub {% if capa_stats.overdue > 0 %}danger{% endif %}">
+        {% if capa_stats.overdue > 0 %}⚠ 기한초과 {{ capa_stats.overdue }}건{% else %}기한초과 없음 ✓{% endif %}
+      </div>
+    </article>
+    <article class="kpi s">
+      <a class="kpi-link" href="{{ url_for('audit.index') }}">심사 →</a>
+      <div class="kpi-eyebrow">Audit</div>
+      <div class="kpi-num num">{{ audit_stats.planned }}</div>
+      <div class="kpi-label">계획된 내부심사</div>
+      <div class="kpi-sub">30일 내 예정 {{ audit_stats.upcoming }}건</div>
+    </article>
+    <article class="kpi e">
+      <a class="kpi-link" href="{{ url_for('audit.index') }}">심사 →</a>
+      <div class="kpi-eyebrow">Completed</div>
+      <div class="kpi-num num">{{ audit_stats.completed_year }}</div>
+      <div class="kpi-label">올해 완료 심사</div>
+      <div class="kpi-sub">{{ today.year }}년 누계</div>
+    </article>
+  </div>
+
+  <!-- ══ 조치 필요 항목 ══ -->
+  <div class="dash-h" id="worklist">
+    <span class="bar"></span><h3>조치 필요 항목</h3>
+    {% if urgent_items %}<span class="count num">{{ urgent_items|length }}</span>{% endif %}
+  </div>
+  <div class="panel" style="margin-bottom:6px;">
+    <div class="wl">
+      {% if urgent_items %}
+        {% for item in urgent_items %}
+        <a href="{{ item.url }}" class="wl-item {{ item.color }}">
+          <span class="wl-ico">{{ item.icon }}</span>
+          <div>
+            <div class="wl-title">{{ item.title }}</div>
+            <div class="wl-detail">{{ item.detail }}</div>
+          </div>
+          <span class="wl-arrow">›</span>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="wl-empty"><div class="e-ico">✅</div><p>지금 조치가 필요한 항목이 없습니다.</p></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ══ 부서별 기록 ══ -->
+  <div class="dash-h"><span class="bar"></span><h3>부서별 기록 현황</h3></div>
+  <div class="dept-row">
+    <a class="dept-tile" href="{{ url_for('training.index') }}">
+      <div class="d-ico">🎓</div><div class="d-num num">{{ dept_stats.training_total }}</div>
+      <div class="d-label">교육훈련 이수</div><div class="d-sub">법정의무 {{ dept_stats.training_legal }}건</div>
+    </a>
+    <a class="dept-tile" href="{{ url_for('complaint.index') }}">
+      <div class="d-ico">📞</div>
+      <div class="d-num num" style="{% if dept_stats.complaint_open > 0 %}color:var(--alert){% endif %}">{{ dept_stats.complaint_open }}</div>
+      <div class="d-label">미처리 클레임</div><div class="d-sub">처리 필요</div>
+    </a>
+    <a class="dept-tile" href="{{ url_for('design.index') }}">
+      <div class="d-ico">🔬</div><div class="d-num num">{{ dept_stats.design_pending }}</div>
+      <div class="d-label">설계변경 진행</div><div class="d-sub">초안+검토</div>
+    </a>
+    <a class="dept-tile" href="{{ url_for('hse.legal') }}">
+      <div class="d-ico">⚖️</div><div class="d-num" style="font-size:1.2rem;color:var(--muted);margin-top:8px;">바로가기</div>
+      <div class="d-label">법규 등록부</div><div class="d-sub">준수 현황</div>
+    </a>
+    <a class="dept-tile" href="{{ url_for('records.index') }}">
+      <div class="d-ico">🗑️</div>
+      <div class="d-num num" style="{% if dept_stats.disposal_soon > 0 %}color:var(--s){% endif %}">{{ dept_stats.disposal_soon }}</div>
+      <div class="d-label">폐기 임박 기록</div><div class="d-sub">30일 이내</div>
+    </a>
+  </div>
+
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 헤드라인 카운트업
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var el=document.querySelector('.alert-num'); if(!el) return;
+  var target=parseInt(el.getAttribute('data-count')||'0',10);
+  if(reduce || target<=0){ el.textContent=target; return; }
+  var start=performance.now(), dur=700;
+  function tick(t){ var p=Math.min((t-start)/dur,1); el.textContent=Math.round(target*(1-Math.pow(1-p,3)));
+    if(p<1) requestAnimationFrame(tick); }
+  requestAnimationFrame(tick);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ rec.record_number }}{% endblock %}
+{% block breadcrumb %}📋 부서별 기록 › 회의록 › {{ rec.record_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ rec.title or rec.record_number }}
+      {% if rec.meeting_type %}<span class="status-badge status-active" style="font-size:0.8rem;">{{ rec.meeting_type.name }}</span>{% else %}<span class="status-badge status-draft" style="font-size:0.8rem;">기타</span>{% endif %}
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ rec.record_number }} · 개최일 {{ rec.meeting_date or '-' }}</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.has_edit() and (current_user.is_admin() or rec.created_by_id == current_user.id) %}
+    <a href="{{ url_for('meeting.edit', rec_id=rec.id) }}" class="btn btn-primary">✏️ 수정</a>
+    <form method="POST" action="{{ url_for('meeting.delete', rec_id=rec.id) }}" style="display:inline;"
+          onsubmit="return confirm('회의록을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('meeting.records') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">📋 회의 개요</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(label, value) %}
+          <tr>
+            <td style="padding:9px 0;width:110px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">{{ label }}</td>
+            <td style="padding:9px 0;font-size:0.88rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('회의 종류', rec.meeting_type.name if rec.meeting_type else '기타 (수시)') }}
+          {{ row('개최일', rec.meeting_date or '-') }}
+          {{ row('장소', rec.location or '-') }}
+          {{ row('주재자', rec.chair or '-') }}
+          {{ row('참석자', rec.attendees or '-') }}
+          {% if rec.next_date %}{{ row('차기 예정일', rec.next_date) }}{% endif %}
+        </table>
+      </div>
+    </div>
+
+    {% for title, val, icon in [('안건', rec.agenda, '📌'), ('논의 및 결정사항', rec.discussion, '💬'), ('조치사항', rec.action_items, '✅')] %}
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">{{ icon }} {{ title }}</div>
+      <div class="card-body" style="font-size:0.9rem;white-space:pre-line;">{{ val or '-' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header">📎 회의 자료 / 사진</div>
+      <div class="card-body">
+        {% set atts = rec.attachments.all() %}
+        {% if atts %}
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          {% for att in atts %}
+          {% set aurl = url_for('static', filename='uploads/' ~ att.file_path.split('\\')[-1].split('/')[-1]) %}
+          <div style="position:relative;width:110px;">
+            {% if att.is_image %}
+            <img src="{{ aurl }}" class="zoomable" style="width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+            {% else %}
+            <a href="{{ aurl }}" download style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:110px;height:110px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);color:var(--text-secondary);font-size:0.7rem;text-align:center;padding:8px;"><span style="font-size:1.7rem;">📄</span><span style="margin-top:6px;word-break:break-all;">{{ att.file_name[:18] }}</span></a>
+            {% endif %}
+            {% if current_user.has_edit() and (current_user.is_admin() or rec.created_by_id == current_user.id) %}
+            <form method="POST" action="{{ url_for('meeting.delete_attachment', att_id=att.id) }}" onsubmit="return confirm('첨부를 삭제하시겠습니까?');" style="position:absolute;top:4px;right:4px;">
+              <button type="submit" style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;">×</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="font-size:0.82rem;color:var(--text-muted);">첨부된 자료가 없습니다.</div>
+        {% endif %}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:0.78rem;color:var(--text-muted);">
+          작성자: {{ rec.created_by.name if rec.created_by else '-' }}<br>
+          작성일: {{ rec.created_at.strftime('%Y-%m-%d %H:%M') if rec.created_at else '-' }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}시정조치(CAPA) 관리{% endblock %}
+{% block breadcrumb %}⚡ 심사 관리 › 시정조치 (CAPA){% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">시정 및 예방조치 (CAPA)</div>
+    <div class="page-subtitle">부적합 사항에 대한 원인 분석, 시정 조치 및 유효성 검증을 추적합니다.</div>
+  </div>
+  <a href="{{ url_for('audit.new_capa') }}" class="btn btn-primary">
+    <span>➕ 시정조치(CAPA) 발행</span>
+  </a>
+</div>
+
+<!-- 탭 필터 -->
+<div class="tab-container" style="margin-bottom: var(--spacing-md); display: flex; gap: var(--spacing-xs);">
+  <a href="{{ url_for('audit.capa_list') }}" class="btn btn-sm {% if not status %}btn-primary{% else %}btn-secondary{% endif %}">전체</a>
+  <a href="{{ url_for('audit.capa_list', status='open') }}" class="btn btn-sm {% if status == 'open' %}btn-primary{% else %}btn-secondary{% endif %}">조치요청(Open)</a>
+  <a href="{{ url_for('audit.capa_list', status='in_progress') }}" class="btn btn-sm {% if status == 'in_progress' %}btn-primary{% else %}btn-secondary{% endif %}">조치중(In Progress)</a>
+  <a href="{{ url_for('audit.capa_list', status='closed') }}" class="btn btn-sm {% if status == 'closed' %}btn-primary{% else %}btn-secondary{% endif %}">조치완료(Closed)</a>
+</div>
+
+<div class="table-container">
+  <div class="card-header">
+    <h3 class="card-title">시정조치 요구서 및 추적 대장</h3>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>요구 번호</th>
+        <th>출처 심사</th>
+        <th>부적합 내용 및 조항</th>
+        <th>원인 및 시정조치 방안</th>
+        <th>담당자 / 기한</th>
+        <th>유효성 검증</th>
+        <th>상태</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for capa in capas %}
+      <tr>
+        <td><a href="{{ url_for('audit.capa_detail', capa_id=capa.id) }}"><strong>{{ capa.capa_number }}</strong></a></td>
+        <td>
+          {% if capa.audit %}
+          <a href="{{ url_for('audit.audit_detail', audit_id=capa.audit.id) }}">{{ capa.audit.audit_number }}</a>
+          {% else %}
+          수시 발행
+          {% endif %}
+        </td>
+        <td>
+          <div style="font-weight: 500;">[조항: {{ capa.iso_clause or 'N/A' }}]</div>
+          <div style="font-size: var(--font-sm); color: var(--text-muted); margin-top: 4px;">{{ capa.nc_description }}</div>
+        </td>
+        <td>
+          {% if capa.root_cause %}
+          <div style="font-size: var(--font-sm);"><strong>원인:</strong> {{ capa.root_cause }}</div>
+          {% endif %}
+          {% if capa.corrective_action %}
+          <div style="font-size: var(--font-sm); margin-top: 4px;"><strong>대책:</strong> {{ capa.corrective_action }}</div>
+          {% endif %}
+        </td>
+        <td>
+          <div>👤 {{ capa.responsible.name if capa.responsible else '미지정' }}</div>
+          <div style="font-size: var(--font-xs); color: var(--text-muted); margin-top: 4px;">
+            기한: {{ capa.due_date.strftime('%Y-%m-%d') if capa.due_date else '미정' }}
+            {% if capa.due_date and capa.due_date < today and capa.status != 'closed' %}
+            <span class="text-danger" style="font-weight:bold;">[기한초과]</span>
+            {% endif %}
+          </div>
+        </td>
+        <td style="min-width: 180px;">
+          {% if capa.effectiveness %}
+          <div style="font-size: var(--font-sm); white-space: pre-wrap;">{{ capa.effectiveness }}</div>
+          {% else %}
+          <span class="text-muted" style="font-size: var(--font-xs);">미검증</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if capa.status == 'open' %}
+          <span class="badge badge-danger">조치요청</span>
+          {% elif capa.status == 'in_progress' %}
+          <span class="badge badge-warning">조치중</span>
+          {% elif capa.status == 'verified' %}
+          <span class="badge badge-warning">검토완료</span>
+          {% elif capa.status == 'closed' %}
+          <span class="badge badge-success">조치완료</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('audit.capa_detail', capa_id=capa.id) }}" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:var(--font-xs);">상세 →</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="text-center text-muted" style="padding: var(--spacing-xl);">조회할 시정조치 내역이 없습니다.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}환경측면 영향평가 대장{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 관리 › 환경 영향평가{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">환경측면 영향평가 대장</div>
+    <div class="page-subtitle">공정별 환경 요소를 분석하고 중점 관리 대상인 중요 환경영향(Aspect)을 분류 및 대책을 수립합니다.</div>
+  </div>
+  <div style="display: flex; gap: var(--spacing-sm);">
+    <a href="{{ url_for('hse.index') }}" class="btn btn-secondary">
+      <span>↩️ HSE 메인</span>
+    </a>
+    <a href="{{ url_for('hse.export_environmental', site=site) }}" class="btn btn-success">
+      <span>📊 Excel 다운로드{% if site %} ({{ site }}){% endif %}</span>
+    </a>
+    <a href="{{ url_for('hse.new_environmental') }}" class="btn btn-primary" style="background-color: var(--iso-e); border-color: var(--iso-e);">
+      <span>➕ 신규 환경측면 평가 등록</span>
+    </a>
+  </div>
+</div>
+
+<!-- 사업장 필터 -->
+<div style="margin-bottom: var(--spacing-md); display: flex; gap: var(--spacing-xs);">
+  <a href="{{ url_for('hse.environmental') }}" class="btn btn-sm {% if not site %}btn-primary{% else %}btn-secondary{% endif %}">전체</a>
+  <a href="{{ url_for('hse.environmental', site='본사') }}" class="btn btn-sm {% if site == '본사' %}btn-primary{% else %}btn-secondary{% endif %}">🏢 본사 (서울)</a>
+  <a href="{{ url_for('hse.environmental', site='제조공장') }}" class="btn btn-sm {% if site == '제조공장' %}btn-primary{% else %}btn-secondary{% endif %}">🏭 제조공장 (나주)</a>
+</div>
+
+<div class="table-container">
+  <div class="card-header">
+    <h3 class="card-title">환경 영향평가 이력 및 대장{% if site %} — {{ site }}{% endif %}</h3>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>평가 번호</th>
+        <th>사업장</th>
+        <th>세부 공정</th>
+        <th>환경 측면 (Aspect)</th>
+        <th>환경 영향 (Impact)</th>
+        <th>평가 점수 (빈도x강도)</th>
+        <th>중요성 판정</th>
+        <th>현재 통제/관리 대책</th>
+        <th>평가 부서</th>
+        <th>평가 일자</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for aspect in aspects %}
+      <tr class="{% if aspect.is_significant %}row-warning{% endif %}">
+        <td><strong>{{ aspect.aspect_number }}</strong></td>
+        <td><span class="badge {% if aspect.site == '본사' %}badge-info{% else %}badge-secondary{% endif %}">{{ aspect.site or '제조공장' }}</span></td>
+        <td>{{ aspect.process }}</td>
+        <td>{{ aspect.aspect }}</td>
+        <td>{{ aspect.impact }}</td>
+        <td>
+          <span style="font-weight: 600;">{{ aspect.significance }}점</span> 
+          <span class="text-muted" style="font-size: var(--font-xs);">({{ aspect.frequency }} × {{ aspect.severity }})</span>
+        </td>
+        <td>
+          {% if aspect.is_significant %}
+          <span class="badge badge-danger">중요 환경측면</span>
+          {% else %}
+          <span class="badge badge-secondary">일반 관리</span>
+          {% endif %}
+        </td>
+        <td>{{ aspect.control_measure or '-' }}</td>
+        <td>{{ aspect.department.name if aspect.department else '-' }}</td>
+        <td>{{ aspect.evaluation_date.strftime('%Y-%m-%d') }}</td>
+        <td>
+          {% if current_user.has_edit() and (current_user.is_admin() or aspect.created_by_id == current_user.id) %}
+          {{ icons.edit_link(url_for('hse.edit_environmental', aid=aspect.id)) }}
+          {% endif %}
+          {% if current_user.is_admin() or aspect.created_by_id == current_user.id %}
+          {{ icons.delete_form(url_for('hse.delete_environmental', aid=aspect.id), '환경측면 평가를 삭제하시겠습니까? 되돌릴 수 없습니다.') }}
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="11" class="text-center text-muted" style="padding: var(--spacing-xl);">등록된 환경 영향평가 결과가 없습니다.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

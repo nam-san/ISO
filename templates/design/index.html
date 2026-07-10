@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}설계/개발 변경 관리{% endblock %}
+{% block breadcrumb %}🔬 설계/개발 변경 관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">설계/개발 변경 관리 <span>Design Change Request</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">ISO 9001 8.3.6 설계·개발 변경 관리 이력</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('design.export_excel') }}" class="btn btn-outline">📊 Excel 대장 출력</a>
+    <a href="{{ url_for('design.new') }}" class="btn btn-primary">＋ 변경 요청 등록</a>
+  </div>
+</div>
+
+<!-- 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+  {% for label, key, color in [('초안', 'draft', '#94a3b8'), ('검토중', 'review', '#f59e0b'), ('승인', 'approved', '#22c55e'), ('반영완료', 'implemented', '#2563eb')] %}
+  <div class="card" style="text-align:center;padding:18px;">
+    <div style="font-size:1.6rem;font-weight:800;color:{{ color }};">{{ stats[key] }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 검색 -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:160px;">
+        <label class="form-label">검색어</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="변경번호 / 제품명 / 변경 제목">
+      </div>
+      <div>
+        <label class="form-label">변경 유형</label>
+        <select name="type" class="form-control">
+          <option value="">전체</option>
+          <option value="설계변경" {% if change_type=='설계변경' %}selected{% endif %}>설계변경</option>
+          <option value="공정변경" {% if change_type=='공정변경' %}selected{% endif %}>공정변경</option>
+          <option value="자재변경" {% if change_type=='자재변경' %}selected{% endif %}>자재변경</option>
+          <option value="소프트웨어변경" {% if change_type=='소프트웨어변경' %}selected{% endif %}>소프트웨어변경</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">상태</label>
+        <select name="status" class="form-control">
+          <option value="">전체</option>
+          <option value="draft" {% if status=='draft' %}selected{% endif %}>초안</option>
+          <option value="review" {% if status=='review' %}selected{% endif %}>검토중</option>
+          <option value="approved" {% if status=='approved' %}selected{% endif %}>승인</option>
+          <option value="implemented" {% if status=='implemented' %}selected{% endif %}>반영완료</option>
+          <option value="rejected" {% if status=='rejected' %}selected{% endif %}>기각</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('design.index') }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">총 <strong>{{ changes|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>변경번호</th><th>제품명</th><th>변경유형</th><th>변경 제목</th>
+          <th>요청일</th><th>적용예정일</th><th>요청자</th><th>승인자</th><th>상태</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for dc in changes %}
+      <tr style="cursor:pointer;" onclick="location.href='{{ url_for('design.detail', dcid=dc.id) }}'">
+        <td style="font-size:0.8rem;color:var(--text-muted);">{{ dc.change_number }}</td>
+        <td style="font-weight:600;">{{ dc.product_name }}</td>
+        <td>
+          <span style="background:var(--iso-q-light);color:var(--iso-q);padding:2px 8px;border-radius:10px;font-size:0.78rem;">
+            {{ dc.change_type or '-' }}
+          </span>
+        </td>
+        <td>{{ dc.change_title }}</td>
+        <td class="date-cell">{{ dc.request_date or '-' }}</td>
+        <td class="date-cell">{{ dc.apply_date or '-' }}</td>
+        <td>{{ dc.requester.name if dc.requester else '-' }}</td>
+        <td>{{ dc.approver.name if dc.approver else '-' }}</td>
+        <td>
+          {% set sm = {'draft':'초안','review':'검토중','approved':'승인','implemented':'반영완료','rejected':'기각'} %}
+          {% set sc = {'draft':'draft','review':'review','approved':'active','implemented':'active','rejected':'obsolete'} %}
+          <span class="status-badge status-{{ sc.get(dc.status,'draft') }}">{{ sm.get(dc.status, dc.status) }}</span>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">🔬 등록된 설계변경 요청이 없습니다.<br><a href="{{ url_for('design.new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 변경 요청 등록하기</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

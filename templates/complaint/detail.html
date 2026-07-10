@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{{ c.complaint_number }} 상세{% endblock %}
+{% block breadcrumb %}📞 고객 클레임 › {{ c.complaint_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ c.complaint_number }} <span>{{ c.customer_name }}</span></div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if c.status in ['open','investigating'] and current_user.has_edit() and (current_user.is_admin() or c.created_by_id == current_user.id) %}
+    <a href="{{ url_for('complaint.edit', cid=c.id) }}" class="btn btn-primary">✏️ 기본정보 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or (c.created_by_id == current_user.id and c.status in ['open','investigating']) %}
+    <form method="POST" action="{{ url_for('complaint.delete', cid=c.id) }}" style="display:inline;"
+          onsubmit="return confirm('클레임 건을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('complaint.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+{% set is_overdue = c.due_date and c.due_date < today and c.status in ['open','investigating'] %}
+{% if is_overdue %}
+<div class="info-box" style="background:#fee2e2;border:1px solid #ef4444;color:#991b1b;padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:20px;font-size:0.88rem;">
+  ⚠️ <strong>처리 기한({{ c.due_date }})이 초과되었습니다.</strong> 즉시 처리 현황을 업데이트해 주세요.
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <div>
+    <!-- 기본 정보 -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">📋 클레임 기본 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(label, value) %}
+          <tr>
+            <td style="padding:10px 0;width:130px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+            <td style="padding:10px 0;font-size:0.88rem;border-bottom:1px solid var(--border-light);">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('접수번호', c.complaint_number) }}
+          {{ row('접수일', c.receipt_date) }}
+          {{ row('고객사', c.customer_name) }}
+          {{ row('담당자', c.contact_person or '-') }}
+          {{ row('연락처', c.contact_info or '-') }}
+          {{ row('제품/모델', c.product_model or '-') }}
+          {{ row('클레임 유형', c.complaint_type or '-') }}
+          {{ row('관련 ISO 조항', c.iso_clause or '-') }}
+          {{ row('처리 담당자', c.responsible.name if c.responsible else '-') }}
+          {{ row('처리 기한', c.due_date or '-') }}
+          {{ row('처리 완료일', c.resolved_date or '-') }}
+        </table>
+        <div style="margin-top:16px;padding:14px;background:#fff5f5;border-radius:var(--radius-sm);border:1px solid #fecaca;">
+          <div style="font-size:0.78rem;font-weight:600;color:#991b1b;margin-bottom:6px;">불만 내용</div>
+          <div style="font-size:0.88rem;white-space:pre-line;">{{ c.complaint_content }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 처리 내용 -->
+    <div class="card">
+      <div class="card-header">🔧 처리 내용{% if c.status != 'closed' %} 업데이트{% endif %}</div>
+      <div class="card-body">
+        {% if c.status == 'closed' %}
+        <!-- 종결됨: 읽기전용 -->
+        <div style="background:#f1f5f9;border:1px solid var(--border);color:var(--text-secondary);padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.84rem;">
+          🔒 <strong>종결 처리된 클레임입니다.</strong> 처리 내용은 더 이상 수정할 수 없습니다.
+        </div>
+        {% set ro_row = [('원인 분석', c.root_cause), ('조치 내용', c.action_taken), ('재발방지 조치', c.preventive_measure)] %}
+        {% for label, val in ro_row %}
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">{{ label }}</label>
+          <div style="font-size:0.88rem;white-space:pre-line;padding:10px 12px;background:var(--bg-base);border-radius:var(--radius-sm);border:1px solid var(--border-light);min-height:40px;">{{ val or '-' }}</div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <form method="POST" action="{{ url_for('complaint.update', cid=c.id) }}" enctype="multipart/form-data">
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">처리 상태</label>
+            <select name="status" class="form-control">
+              <option value="open" {% if c.status=='open' %}selected{% endif %}>접수 (미처리)</option>
+              <option value="investigating" {% if c.status=='investigating' %}selected{% endif %}>조사중</option>
+              <option value="resolved" {% if c.status=='resolved' %}selected{% endif %}>처리완료</option>
+              <option value="closed" {% if c.status=='closed' %}selected{% endif %}>종결</option>
+            </select>
+            <p style="font-size:0.74rem;color:var(--text-muted);margin-top:4px;">※ ‘처리완료’ 또는 ‘종결’ 선택 시 처리완료일이 오늘 날짜로 자동 기입됩니다. ‘종결’ 저장 후에는 수정할 수 없습니다.</p>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">원인 분석</label>
+            <textarea name="root_cause" class="form-control" rows="3"
+                      placeholder="클레임 발생 원인을 분석하여 기재하세요.">{{ c.root_cause or '' }}</textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">조치 내용</label>
+            <textarea name="action_taken" class="form-control" rows="3"
+                      placeholder="고객에게 취한 시정 조치 내용을 기재하세요.">{{ c.action_taken or '' }}</textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">재발방지 조치</label>
+            <textarea name="preventive_measure" class="form-control" rows="3"
+                      placeholder="동일 문제 재발 방지를 위한 예방 조치를 기재하세요.">{{ c.preventive_measure or '' }}</textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:20px;">
+            <label class="form-label">처리 증빙 첨부 (사진·문서, 여러 개 선택 가능)</label>
+            <input type="file" name="attachments" class="form-control" multiple
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif,.webp">
+            <p style="font-size:0.74rem;color:var(--text-muted);margin-top:4px;">저장 시 함께 업로드됩니다. 이미지는 아래에서 클릭하면 확대됩니다.</p>
+          </div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button type="submit" class="btn btn-primary">💾 처리 내용 저장</button>
+          </div>
+        </form>
+        {% endif %}
+
+        <!-- 처리 증빙 자료 -->
+        {% set atts = c.attachments.all() %}
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);">
+          <div style="font-size:0.82rem;font-weight:700;color:var(--ink,#0f2240);margin-bottom:10px;">📎 처리 증빙 자료 ({{ atts|length }})</div>
+          {% if atts %}
+          <div style="display:flex;flex-wrap:wrap;gap:14px;">
+            {% for att in atts %}
+            {% set aurl = url_for('static', filename='uploads/' ~ att.file_path.split('\\')[-1].split('/')[-1]) %}
+            <div style="position:relative;width:120px;">
+              {% if att.is_image %}
+              <img src="{{ aurl }}" class="zoomable" title="클릭하여 확대"
+                   style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+              {% else %}
+              <a href="{{ aurl }}" download
+                 style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:120px;height:120px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);text-decoration:none;color:var(--text-secondary);font-size:0.72rem;text-align:center;padding:8px;">
+                <span style="font-size:1.8rem;">📄</span>
+                <span style="margin-top:6px;word-break:break-all;">{{ att.file_name[:22] }}</span>
+              </a>
+              {% endif %}
+              <div style="font-size:0.68rem;color:var(--text-muted);margin-top:4px;text-align:center;word-break:break-all;">{{ att.file_name[:18] }}</div>
+              {% if current_user.has_edit() and c.status != 'closed' %}
+              <form method="POST" action="{{ url_for('complaint.delete_attachment', att_id=att.id) }}"
+                    onsubmit="return confirm('이 첨부를 삭제하시겠습니까?');" style="position:absolute;top:4px;right:4px;">
+                <button type="submit" title="삭제"
+                        style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.8rem;line-height:1;">×</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div style="font-size:0.82rem;color:var(--text-muted);">첨부된 처리 증빙이 없습니다. 위 양식에서 파일을 선택해 저장하세요.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <!-- 상태 카드 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📊 처리 상태</div>
+      <div class="card-body" style="text-align:center;">
+        {% set priority_label = {'high':'긴급','normal':'일반','low':'낮음'} %}
+        {% set priority_color = {'high':'#ef4444','normal':'#3b82f6','low':'#94a3b8'} %}
+        <div style="margin-bottom:12px;">
+          <span style="background:{{ priority_color.get(c.priority,'#94a3b8') }};color:#fff;padding:4px 12px;border-radius:10px;font-size:0.82rem;font-weight:700;">
+            {{ priority_label.get(c.priority,'일반') }} 우선순위
+          </span>
+        </div>
+        {% set status_map = {'open':'접수','investigating':'조사중','resolved':'처리완료','closed':'종결'} %}
+        {% set status_cls = {'open':'obsolete','investigating':'review','resolved':'active','closed':'draft'} %}
+        <span class="status-badge status-{{ status_cls.get(c.status,'draft') }}" style="font-size:0.95rem;padding:8px 20px;">
+          {{ status_map.get(c.status, c.status) }}
+        </span>
+
+        <!-- 처리 단계 시각화 -->
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px;">
+          {% for step, key in [('접수', 'open'), ('조사중', 'investigating'), ('처리완료', 'resolved'), ('종결', 'closed')] %}
+          {% set steps = ['open','investigating','resolved','closed'] %}
+          {% set current_idx = steps.index(c.status) if c.status in steps else 0 %}
+          {% set step_idx = steps.index(key) %}
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;
+               background:{% if step_idx <= current_idx %}var(--iso-e-light){% else %}var(--bg-base){% endif %};">
+            <span>{% if step_idx < current_idx %}✅{% elif step_idx == current_idx %}⏳{% else %}⬜{% endif %}</span>
+            <span style="font-size:0.82rem;font-weight:600;
+                  color:{% if step_idx <= current_idx %}var(--iso-e){% else %}var(--text-muted){% endif %};">{{ step }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {% if file_url %}
+    <div class="card">
+      <div class="card-header">📎 첨부파일</div>
+      <div class="card-body">
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">{{ c.file_name }}</p>
+        <a href="{{ file_url }}" class="btn btn-outline btn-sm" style="width:100%;text-align:center;display:block;" download>⬇️ 파일 다운로드</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

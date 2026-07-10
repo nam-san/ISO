@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="주식회사 누리보이스 ISO 통합경영시스템">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <title>{% block title %}IMS{% endblock %} | 누리보이스 ISO 통합경영시스템</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- ══════════════ 사이드바 ══════════════ -->
+<aside class="sidebar" id="sidebar">
+  <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand" style="text-decoration:none;" title="메인(대시보드)으로 이동">
+    <div class="brand-logo">
+      <img src="{{ url_for('static', filename='img/favicon.png') }}" alt="누리보이스 로고" class="brand-logo-img">
+    </div>
+    <div class="brand-text">
+      <div class="brand-name">누리보이스</div>
+      <div class="brand-sub">ISO 통합경영시스템</div>
+    </div>
+  </a>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">조직</div>
+    {% set org_active = request.endpoint and request.endpoint.startswith('org.') %}
+    <div class="nav-group {% if org_active %}open{% endif %}" id="navGroupOrg">
+      <div class="nav-group-toggle {% if org_active %}active{% endif %}" onclick="toggleNavGroup('navGroupOrg')">
+        <span class="nav-icon">🏢</span>
+        <span class="nav-text">조직도</span>
+        <span class="nav-group-arrow">▼</span>
+      </div>
+      <div class="nav-submenu">
+        <a href="{{ url_for('org.chart', slug='full') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='full' %}active{% endif %}"><span>🏢</span> 전체 조직도</a>
+        <a href="{{ url_for('org.chart', slug='quality') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='quality' %}active{% endif %}"><span>✅</span> 품질 조직도</a>
+        <a href="{{ url_for('org.chart', slug='env') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='env' %}active{% endif %}"><span>🌿</span> 환경 조직도</a>
+        <a href="{{ url_for('org.chart', slug='safety') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='safety' %}active{% endif %}"><span>⛑️</span> 안전보건 조직도</a>
+      </div>
+    </div>
+
+    <div class="nav-section-label">문서 관리</div>
+    <a href="{{ url_for('documents.index') }}" class="nav-item {% if 'documents' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">📁</span>
+      <span class="nav-text">기준문서 관리</span>
+      <span class="nav-badge iso-q">9001</span>
+    </a>
+
+    {% set records_active = 'records' in request.endpoint %}
+    <div class="nav-group {% if records_active %}open{% endif %}" id="navGroupRecords">
+      <div class="nav-group-toggle {% if records_active %}active{% endif %}" onclick="toggleNavGroup('navGroupRecords')">
+        <span class="nav-icon">📋</span>
+        <span class="nav-text">실행기록 관리</span>
+        <span class="nav-group-arrow">▼</span>
+      </div>
+      <div class="nav-submenu">
+        <a href="{{ url_for('records.index') }}" class="nav-sub-item {% if records_active and not request.args.get('dept') %}active{% endif %}">
+          <span>📂</span> 전체 기록
+        </a>
+        {% for dept in all_departments if dept.code != 'CEO' %}
+        <a href="{{ url_for('records.index', dept=dept.id) }}" class="nav-sub-item {% if records_active and request.args.get('dept') == dept.id|string %}active{% endif %}">
+          <span>·</span> {{ dept.name }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="nav-section-label">경영 검토</div>
+    <a href="{{ url_for('review.index') }}" class="nav-item {% if 'review' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">📋</span>
+      <span class="nav-text">경영검토</span>
+      <span class="nav-badge iso-q" style="font-size:0.55rem;">9.3</span>
+    </a>
+
+    <div class="nav-section-label">심사 관리</div>
+    <a href="{{ url_for('audit.index') }}" class="nav-item {% if request.endpoint == 'audit.index' %}active{% endif %}">
+      <span class="nav-icon">🔍</span>
+      <span class="nav-text">심사 계획/결과</span>
+    </a>
+    <a href="{{ url_for('audit.capa_list') }}" class="nav-item {% if 'capa' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-text">시정조치 (CAPA)</span>
+    </a>
+
+    <div class="nav-section-label">환경·안전</div>
+    <a href="{{ url_for('hse.environmental') }}" class="nav-item {% if 'environmental' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🌿</span>
+      <span class="nav-text">환경측면 평가</span>
+      <span class="nav-badge iso-e">14001</span>
+    </a>
+    <a href="{{ url_for('hse.risk') }}" class="nav-item {% if request.endpoint == 'hse.risk' %}active{% endif %}">
+      <span class="nav-icon">⛑️</span>
+      <span class="nav-text">위험성 평가</span>
+      <span class="nav-badge iso-s">45001</span>
+    </a>
+    <a href="{{ url_for('improvement.index') }}" class="nav-item {% if 'improvement' in request.endpoint %}active{% endif %}" style="padding-left:34px;">
+      <span class="nav-icon">🛠️</span>
+      <span class="nav-text">개선조치</span>
+    </a>
+    <a href="{{ url_for('hse.legal') }}" class="nav-item {% if 'legal' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">⚖️</span>
+      <span class="nav-text">법규 등록부</span>
+    </a>
+    <a href="{{ url_for('inspection.index') }}" class="nav-item {% if 'inspection' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🗓️</span>
+      <span class="nav-text">법정점검 주기관리</span>
+    </a>
+
+    <div class="nav-section-label">부서별 기록</div>
+    <a href="{{ url_for('training.index') }}" class="nav-item {% if 'training' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🎓</span>
+      <span class="nav-text">교육훈련 이수</span>
+    </a>
+    <a href="{{ url_for('complaint.index') }}" class="nav-item {% if 'complaint' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">📞</span>
+      <span class="nav-text">고객 클레임</span>
+      <span class="nav-badge iso-q">9001</span>
+    </a>
+    <a href="{{ url_for('design.index') }}" class="nav-item {% if 'design' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🔬</span>
+      <span class="nav-text">설계변경 관리</span>
+      <span class="nav-badge iso-q">9001</span>
+    </a>
+    <a href="{{ url_for('grievance.index') }}" class="nav-item {% if 'grievance' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🗣️</span>
+      <span class="nav-text">근로자 고충처리</span>
+    </a>
+    <a href="{{ url_for('meeting.index') }}" class="nav-item {% if 'meeting' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">📋</span>
+      <span class="nav-text">회의록</span>
+    </a>
+
+    <div class="nav-section-label">운영 자가진단</div>
+    <a href="{{ url_for('rba.index') }}" class="nav-item {% if 'rba' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🛡️</span>
+      <span class="nav-text">자가진단 체크시트</span>
+      <span class="nav-badge iso-e">EHS</span>
+    </a>
+
+    {% if current_user.is_admin() %}
+    <div class="nav-section-label">시스템 관리</div>
+    <a href="{{ url_for('admin.index') }}" class="nav-item {% if request.endpoint == 'admin.index' or request.endpoint == 'admin.new_user' %}active{% endif %}">
+      <span class="nav-icon">👤</span>
+      <span class="nav-text">사용자 관리</span>
+    </a>
+    <a href="{{ url_for('admin.permissions') }}" class="nav-item {% if request.endpoint == 'admin.permissions' %}active{% endif %}">
+      <span class="nav-icon">🔐</span>
+      <span class="nav-text">권한 관리</span>
+    </a>
+    <a href="{{ url_for('admin.system') }}" class="nav-item {% if request.endpoint == 'admin.system' %}active{% endif %}">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-text">시스템 현황</span>
+    </a>
+    {% endif %}
+  </nav>
+
+  <!-- ISO 뱃지 -->
+  <div class="sidebar-iso-badges">
+    <span class="iso-chip iso-q">ISO 9001</span>
+    <span class="iso-chip iso-e">ISO 14001</span>
+    <span class="iso-chip iso-s">ISO 45001</span>
+  </div>
+</aside>
+
+<!-- ══════════════ 메인 콘텐츠 ══════════════ -->
+<div class="main-wrapper">
+
+  <!-- 상단 헤더 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">☰</button>
+      <div class="page-breadcrumb">
+        {% block breadcrumb %}대시보드{% endblock %}
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-date" id="currentDateTime"></div>
+      <div class="user-menu" id="userMenu">
+        <div class="user-avatar">{{ current_user.name[0] }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ current_user.name }}</div>
+          <div class="user-dept">{{ current_user.department.name if current_user.department else '' }}</div>
+        </div>
+        <div class="user-dropdown">
+          <a href="{{ url_for('auth.change_password') }}">🔑 비밀번호 변경</a>
+          <a href="{{ url_for('auth.logout') }}">🚪 로그아웃</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 알림 메시지 -->
+  <div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="flash-msg flash-{{ category }}">
+        <span>{{ message }}</span>
+        <button onclick="this.parentElement.remove()">×</button>
+      </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+
+  <!-- 페이지 콘텐츠 -->
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>© 2024 주식회사 누리보이스 | ISO 통합경영시스템 v1.0 | 사내한(社內限)</span>
+  </footer>
+</div>
+
+<!-- CSRF 토큰 전체 POST 폼 자동 주입 -->
+<script>
+(function () {
+  var meta = document.querySelector('meta[name="csrf-token"]');
+  if (!meta) return;
+  var token = meta.getAttribute('content');
+  document.querySelectorAll('form').forEach(function (form) {
+    if ((form.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'csrf_token';
+    input.value = token;
+    form.appendChild(input);
+  });
+})();
+</script>
+<!-- 이미지 클릭 확대 라이트박스 (img.zoomable 전역) -->
+<div id="imgLightbox" class="img-lightbox" onclick="this.classList.remove('open')">
+  <span class="img-lightbox-close" aria-label="닫기">&times;</span>
+  <img id="imgLightboxImg" src="" alt="확대 이미지">
+</div>
+<script>
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (t && t.tagName === 'IMG' && t.classList.contains('zoomable')) {
+    document.getElementById('imgLightboxImg').src = t.src;
+    document.getElementById('imgLightbox').classList.add('open');
+  }
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') document.getElementById('imgLightbox').classList.remove('open');
+});
+
+// 사용자 메뉴: 클릭 시 고정 토글 (hover 놓쳐도 유지), 바깥 클릭·Esc로 닫기
+(function () {
+  var menu = document.getElementById('userMenu');
+  if (!menu) return;
+  menu.addEventListener('click', function (e) {
+    if (e.target.closest('.user-dropdown')) return;  // 메뉴 항목 클릭은 그대로 진행
+    menu.classList.toggle('open');
+  });
+  document.addEventListener('click', function (e) {
+    if (!menu.contains(e.target)) menu.classList.remove('open');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') menu.classList.remove('open');
+  });
+})();
+</script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ '회의록 수정' if item else '회의록 작성' }}{% endblock %}
+{% block breadcrumb %}📋 부서별 기록 › 회의록 › {{ '수정' if item else '작성' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ '회의록 수정' if item else '회의록 작성' }} <span>Meeting Minutes</span></div>
+  <a href="{{ url_for('meeting.records') }}" class="btn btn-outline">← 목록</a>
+</div>
+
+<div class="card" style="max-width:820px;">
+  <div class="card-header">회의록 입력</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('meeting.edit', rec_id=item.id) if item else url_for('meeting.new') }}" enctype="multipart/form-data">
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">회의 종류</label>
+          <select name="meeting_type_id" id="meeting_type_id" class="form-control" onchange="fillAgenda()">
+            <option value="">기타 (수시 회의)</option>
+            {% for t in types %}
+            <option value="{{ t.id }}" data-agenda="{{ t.agenda_note or '' }}" data-name="{{ t.name }}"
+              {% if (item and item.meeting_type_id==t.id) or (mtype and mtype.id==t.id) %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">개최일 <span class="text-danger">*</span></label>
+          <input type="date" name="meeting_date" class="form-control" required
+                 value="{{ item.meeting_date if item and item.meeting_date else today }}">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">회의 제목 <span class="text-danger">*</span></label>
+        <input type="text" name="title" id="title" class="form-control" required
+               placeholder="예: 2026년 2분기 안전보건 간담회" value="{{ item.title if item else '' }}">
+      </div>
+
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">장소</label>
+          <input type="text" name="location" class="form-control" placeholder="예: 본사 3층 회의실" value="{{ item.location if item else '' }}">
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">주재자</label>
+          <input type="text" name="chair" class="form-control" placeholder="예: 안전보건관리책임자 홍길동" value="{{ item.chair if item else '' }}">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">참석자</label>
+        <textarea name="attendees" class="form-control" rows="2" placeholder="참석자 명단을 기재하세요.">{{ item.attendees if item else '' }}</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">안건</label>
+        <textarea name="agenda" id="agenda" class="form-control" rows="3" placeholder="회의 안건을 기재하세요.">{{ item.agenda if item else '' }}</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">논의 및 결정사항</label>
+        <textarea name="discussion" class="form-control" rows="4" placeholder="논의 내용과 결정사항을 기재하세요.">{{ item.discussion if item else '' }}</textarea>
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">조치사항 (Action Items)</label>
+          <textarea name="action_items" class="form-control" rows="2" placeholder="후속 조치사항·담당·기한을 기재하세요.">{{ item.action_items if item else '' }}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">차기 예정일</label>
+          <input type="date" name="next_date" class="form-control" value="{{ item.next_date if item and item.next_date else '' }}">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label">회의 자료 / 사진 첨부 (여러 개)</label>
+        <input type="file" name="attachments" class="form-control" multiple
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif,.webp">
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <a href="{{ url_for('meeting.records') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary">{{ '수정 저장' if item else '회의록 등록' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function fillAgenda() {
+  var sel = document.getElementById('meeting_type_id');
+  var opt = sel.options[sel.selectedIndex];
+  var agenda = document.getElementById('agenda');
+  var title = document.getElementById('title');
+  if (opt && opt.value) {
+    if (!agenda.value.trim()) agenda.value = opt.getAttribute('data-agenda') || '';
+    if (!title.value.trim()) {
+      var y = new Date().getFullYear();
+      title.value = y + '년 ' + (opt.getAttribute('data-name') || '') ;
+    }
+  }
+}
+{% if not item and mtype %}window.addEventListener('DOMContentLoaded', fillAgenda);{% endif %}
+</script>
+{% endblock %}

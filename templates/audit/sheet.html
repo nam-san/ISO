@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.name }} 체크리스트{% endblock %}
+{% block breadcrumb %}🔍 내부심사 › {{ audit.audit_number }} › {{ dept.name }} 시트{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">📋 {{ dept.name }} 체크리스트 <span>{{ audit.title }}</span></div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:3px;">{{ audit.audit_number }} · 적용표준 {{ audit.iso_standard }}</div>
+  </div>
+  <a href="{{ url_for('audit.audit_detail', audit_id=audit.id) }}" class="btn btn-outline">← 심사 상세</a>
+</div>
+
+<!-- 진행 현황 -->
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px;">
+  {% for label, val, color in [
+      ('전체', stats.total, '#2563eb'),
+      ('적합', stats.conform, '#16a34a'),
+      ('부적합', stats.nonconform, '#dc2626'),
+      ('관찰', stats.observation, '#d97706'),
+      ('해당없음', stats.na, '#6b7280'),
+      ('미점검', stats.pending, '#94a3b8'),
+  ] %}
+  <div class="card" style="text-align:center;padding:12px;">
+    <div style="font-size:1.4rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+    <div style="font-size:0.74rem;color:var(--text-muted);">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<form method="POST">
+  <!-- 부서 시트 헤더 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label class="form-label">심사자 <span style="font-size:0.72rem;color:var(--text-muted)">(계획 단계 지정 심사원 중 선택)</span></label>
+          <select name="auditor_name" class="form-control">
+            <option value="">-- 심사자 선택 --</option>
+            {% for opt in auditor_options %}
+            <option value="{{ opt.name }}" {% if target.auditor_name == opt.name %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+            {% if target.auditor_name and target.auditor_name not in (auditor_options | map(attribute='name') | list) %}
+            <option value="{{ target.auditor_name }}" selected>{{ target.auditor_name }} (기존)</option>
+            {% endif %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">피심사자 <span style="font-size:0.72rem;color:var(--text-muted)">({{ dept.name }} 소속 중 선택)</span></label>
+          <select name="auditee_name" class="form-control">
+            <option value="">-- 피심사자 선택 --</option>
+            {% for m in dept_members %}
+            <option value="{{ m.name }}" {% if target.auditee_name == m.name %}selected{% endif %}>{{ m.name }}{% if m.position %} ({{ m.position }}){% endif %}</option>
+            {% endfor %}
+            {% if target.auditee_name and target.auditee_name not in (dept_members | map(attribute='name') | list) %}
+            <option value="{{ target.auditee_name }}" selected>{{ target.auditee_name }} (기존)</option>
+            {% endif %}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div><label class="form-label">심사일</label><input type="date" name="audit_date" class="form-control" value="{{ target.audit_date or '' }}"></div>
+        <div>
+          <label class="form-label">부서 종합판정</label>
+          <select name="conformity" class="form-control">
+            <option value="">-- 선택 --</option>
+            <option value="conform" {% if target.conformity=='conform' %}selected{% endif %}>적합</option>
+            <option value="conditional" {% if target.conformity=='conditional' %}selected{% endif %}>조건부 적합</option>
+            <option value="nonconform" {% if target.conformity=='nonconform' %}selected{% endif %}>부적합</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% set std_name = {'ISO9001':'ISO 9001 품질','ISO14001':'ISO 14001 환경','ISO45001':'ISO 45001 안전보건'} %}
+  {% for std, items in grouped.items() %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">{{ std_name.get(std, std) }} ({{ items|length }}개 항목)</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" style="font-size:0.84rem;">
+        <thead>
+          <tr>
+            <th style="width:50px;">조항</th>
+            <th style="min-width:280px;">점검 내용</th>
+            <th style="width:130px;">판정</th>
+            <th style="min-width:160px;">객관적 증거</th>
+            <th style="min-width:160px;">지적/관찰 사항</th>
+            <th style="width:90px;">부적합</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for it in items %}
+        {% set rc = {'conform':'#f0fdf4','nonconform':'#fef2f2','observation':'#fffbeb','na':'#f9fafb'} %}
+        <tr style="background:{{ rc.get(it.result,'transparent') }};">
+          <td style="font-weight:700;color:var(--accent);">
+            {{ it.clause }}
+            {% if it.is_mandatory %}<div style="font-size:0.6rem;background:#dc2626;color:#fff;border-radius:6px;padding:0 4px;display:inline-block;">필수</div>{% endif %}
+          </td>
+          <td>
+            <div style="font-weight:600;color:var(--text-secondary);font-size:0.75rem;">{{ it.category }}</div>
+            {{ it.content }}
+          </td>
+          <td>
+            <select name="i_{{ it.id }}_result" class="form-control" style="padding:5px;font-size:0.8rem;">
+              <option value="pending" {% if it.result=='pending' %}selected{% endif %}>미점검</option>
+              <option value="conform" {% if it.result=='conform' %}selected{% endif %}>적합</option>
+              <option value="nonconform" {% if it.result=='nonconform' %}selected{% endif %}>부적합</option>
+              <option value="observation" {% if it.result=='observation' %}selected{% endif %}>관찰</option>
+              <option value="na" {% if it.result=='na' %}selected{% endif %}>해당없음</option>
+            </select>
+          </td>
+          <td><textarea name="i_{{ it.id }}_evidence" class="form-control" rows="2" style="font-size:0.78rem;padding:5px;">{{ it.evidence or '' }}</textarea></td>
+          <td><textarea name="i_{{ it.id }}_finding" class="form-control" rows="2" style="font-size:0.78rem;padding:5px;">{{ it.finding or '' }}</textarea></td>
+          <td style="text-align:center;">
+            {% if it.capa_id %}
+              <a href="{{ url_for('audit.capa_detail', capa_id=it.capa_id) }}" class="status-badge status-obsolete" style="text-decoration:none;">CAPA →</a>
+            {% else %}
+              <button type="button" class="btn btn-outline btn-sm" style="color:var(--danger);"
+                onclick="openNc({{ it.id }}, '{{ it.clause }}')">부적합 등록</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div style="position:sticky;bottom:0;background:white;border-top:2px solid var(--border);padding:14px 20px;margin:0 -24px -24px;display:flex;justify-content:flex-end;gap:10px;box-shadow:0 -4px 12px rgba(0,0,0,0.06);">
+    <button type="submit" class="btn btn-primary">💾 체크리스트 저장</button>
+  </div>
+</form>
+
+<!-- 부적합 등록 모달 -->
+<div id="ncModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:26px;width:460px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <h3 style="margin-bottom:6px;font-size:1rem;">⚡ 부적합 시정조치 등록</h3>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px;">조항 <span id="ncClause"></span> · 저장되지 않은 입력은 먼저 저장하세요.</p>
+    <form id="ncForm" method="POST">
+      <div style="margin-bottom:12px;">
+        <label class="form-label">부적합 구분</label>
+        <select name="nc_type" class="form-control">
+          <option value="minor">경부적합 (Minor)</option>
+          <option value="major">중부적합 (Major)</option>
+          <option value="obs">관찰사항 (Observation)</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label class="form-label">조치 담당자</label>
+        <select name="responsible_id" class="form-control">
+          <option value="">-- 선택 --</option>
+          {% for u in users %}<option value="{{ u.id }}">{{ u.name }}{% if u.department %} ({{ u.department.name }}){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label class="form-label">시정 기한</label>
+        <input type="date" name="due_date" class="form-control">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('ncModal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-danger">부적합 등록</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openNc(itemId, clause) {
+  document.getElementById('ncForm').action = '/audit/checklist-item/' + itemId + '/raise-nc';
+  document.getElementById('ncClause').textContent = clause;
+  document.getElementById('ncModal').style.display = 'flex';
+}
+</script>
+<style>.status-badge.status-obsolete{background:#fee2e2;color:#991b1b;}</style>
+{% endblock %}

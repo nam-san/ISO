@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}연간 교육훈련 계획{% endblock %}
+{% block breadcrumb %}🎓 교육(훈련) 계획 및 실시현황{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ year }} 교육(훈련) 계획 및 실시현황 <span>Annual Training Plan</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      월별 계획 대비 실행현황 —
+      <span style="color:#1d4ed8;font-weight:700;">계획</span> ·
+      <span style="color:#b91c1c;font-weight:700;">미실시</span> ·
+      <span style="color:#15803d;font-weight:700;">완료</span> ·
+      <span style="color:#4b5563;font-weight:700;">발생시</span>
+      배지를 클릭해 실행결과를 등록·확인하세요. (발생시 교육은 당월 이후 칸에만 표시)
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('training.records', year=year) }}" class="btn btn-outline">📋 실행이력</a>
+    <a href="{{ url_for('training.export_excel', year=year) }}" class="btn btn-success">📊 Excel</a>
+    {% if current_user.has_training_edit() %}
+    <a href="{{ url_for('training.plan_new') }}" class="btn btn-primary">＋ 교육계획 추가</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 요약 -->
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px;">
+  {% for label, val, sub, color in [
+      ('계획 항목', stats.total, '연간 교육과정', 'var(--accent)'),
+      ('실행 완료', stats.done_slots ~ '/' ~ stats.total_slots, '월별 계획 대비', '#16a34a'),
+      ('미실시', stats.overdue_slots, '기한 경과·미실시', '#dc2626' if stats.overdue_slots else '#6b7280'),
+      ('진행 예정', stats.plan_slots, '향후 계획', '#1d4ed8'),
+      ('이행률', stats.rate ~ '%', '완료/계획 슬롯', '#2563eb'),
+  ] %}
+  <div class="card" style="text-align:center;padding:16px;">
+    <div style="font-size:1.6rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+    <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-top:4px;">{{ label }}</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">{{ sub }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 연도 · 구분 필터 -->
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <a href="{{ url_for('training.index', year=year) }}" class="btn btn-sm {% if not cat %}btn-primary{% else %}btn-secondary{% endif %}">전체</a>
+    {% for cv in ['안전보건','환경','일반법정','품질','직무일반','기타'] %}
+    <a href="{{ url_for('training.index', year=year, cat=cv) }}" class="btn btn-sm {% if cat==cv %}btn-primary{% else %}btn-secondary{% endif %}">{{ cv }}</a>
+    {% endfor %}
+  </div>
+  <form method="GET" style="display:flex;gap:8px;align-items:center;">
+    {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
+    <label style="font-size:0.82rem;color:var(--text-muted);">연도</label>
+    <select name="year" class="form-control" style="width:auto;" onchange="this.form.submit()">
+      {% for y in years %}<option value="{{ y }}" {% if y==year %}selected{% endif %}>{{ y }}년</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card">
+  <div style="overflow-x:auto;">
+    <table class="train-matrix">
+      <thead>
+        <tr>
+          <th rowspan="2">구분</th>
+          <th rowspan="2">주관</th>
+          <th rowspan="2">교육과정명</th>
+          <th rowspan="2">교육대상</th>
+          <th rowspan="2">인원</th>
+          <th rowspan="2">시간</th>
+          <th rowspan="2">실시주기</th>
+          <th rowspan="2">교육기관</th>
+          <th colspan="12">월별 일정</th>
+          {% if current_user.has_training_edit() %}<th rowspan="2">관리</th>{% endif %}
+        </tr>
+        <tr>
+          {% for m in range(1,13) %}
+          <th class="tmonth-col {% if year==current_year and m==today.month %}tmonth-cur{% endif %}">{{ m }}월</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in plans %}
+      <tr>
+        <td style="white-space:nowrap;">
+          {% if p.category == '안전보건' %}<span style="color:#b91c1c;font-weight:700;">안전보건</span>
+          {% elif p.category == '일반법정' %}<span style="color:#d97706;font-weight:700;">일반법정</span>
+          {% elif p.category == '환경' %}<span style="color:#15803d;font-weight:700;">환경</span>
+          {% elif p.category == '품질' %}<span style="color:#1d4ed8;font-weight:700;">품질</span>
+          {% elif p.category == '직무일반' %}<span style="color:#7c3aed;font-weight:700;">직무일반</span>
+          {% else %}<span style="color:var(--text-secondary);">{{ p.category }}</span>{% endif %}
+        </td>
+        <td style="white-space:nowrap;">{{ p.host or '-' }}</td>
+        <td style="font-weight:600;min-width:170px;">
+          <a href="{{ url_for('training.plan_detail', pid=p.id) }}" style="color:var(--text-primary);">{{ p.title }}</a>
+        </td>
+        <td style="white-space:nowrap;">{{ p.target_desc or '-' }}</td>
+        <td style="text-align:center;">{{ p.target_count if p.target_count else '-' }}</td>
+        <td style="text-align:center;">{{ p.planned_hours|int if p.planned_hours else '-' }}</td>
+        <td style="white-space:nowrap;">{{ p.cycle or '-' }}</td>
+        <td style="min-width:150px;font-size:0.76rem;">{{ p.institution or '-' }}</td>
+        {% for m in range(1,13) %}
+        {% set state, eid = p.cells[m] %}
+        <td class="tmonth-col {% if year==current_year and m==today.month %}tmonth-cur{% endif %}">
+          {% if state == 'done' %}
+            <a href="{{ url_for('training.detail', tid=eid) }}" class="tcell tcell-done" title="완료 — 실행결과 확인/수정">완료</a>
+          {% elif state == 'overdue' %}
+            <a href="{{ url_for('training.new', plan_id=p.id, month=m, year=year) }}" class="tcell tcell-overdue" title="미실시 — 실행결과 등록">미실시</a>
+          {% elif state == 'plan' %}
+            <a href="{{ url_for('training.new', plan_id=p.id, month=m, year=year) }}" class="tcell tcell-plan" title="계획 — 실행결과 등록">계획</a>
+          {% elif state == 'adhoc' %}
+            <a href="{{ url_for('training.new', plan_id=p.id, month=m, year=year) }}" class="tcell tcell-adhoc" title="발생시 — 교육 실시 후 결과 등록">발생시</a>
+          {% endif %}
+        </td>
+        {% endfor %}
+        {% if current_user.has_training_edit() %}
+        <td style="text-align:center;white-space:nowrap;">
+          {{ icons.edit_link(url_for('training.plan_edit', pid=p.id)) }}
+        </td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 21 if current_user.has_training_edit() else 20 }}" style="text-align:center;padding:40px;color:var(--text-muted);">
+        {{ year }}년 등록된 교육계획이 없습니다.
+        {% if current_user.has_training_edit() %}<br><a href="{{ url_for('training.plan_new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 교육계획 추가</a>{% endif %}
+      </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

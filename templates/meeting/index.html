@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}회의록{% endblock %}
+{% block breadcrumb %}📋 부서별 기록 › 회의록{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">필수회의 개최 대장 <span>Required Meetings</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      통합경영시스템 절차서 기준 필수 개최 회의 목록과 개최 현황을 관리합니다.
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('meeting.records') }}" class="btn btn-outline">🗂️ 전체 회의록</a>
+    {% if current_user.has_edit() %}
+    <a href="{{ url_for('meeting.new') }}" class="btn btn-primary">＋ 회의록 작성</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+  {% for label, val, color in [
+      ('필수회의', stats.types, 'var(--primary)'),
+      ('올해 개최 회의록', stats.this_year, '#16a34a'),
+      ('올해 미개최', stats.not_held, '#d97706'),
+      ('전체 회의록', stats.total_records, '#2563eb') ] %}
+  <div class="card" style="text-align:center;padding:18px;">
+    <div style="font-size:1.7rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">필수회의 목록 ({{ year }}년 개최 현황)
+    {% if current_user.has_edit() %}
+    <button class="btn btn-outline btn-sm" style="float:right;" onclick="openType()">＋ 필수회의 항목 추가</button>
+    {% endif %}
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>회의명</th><th>근거 절차서</th><th>주기/시기</th><th>주관</th>
+          <th>참석 대상</th><th style="text-align:center;">올해 개최</th><th>최근 개최일</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for t in types %}
+      {% set s = status[t.id] %}
+      <tr>
+        <td style="font-weight:600;min-width:150px;">{{ t.name }}
+          {% if t.agenda_note %}<div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px;">{{ t.agenda_note[:60] }}{% if t.agenda_note|length > 60 %}…{% endif %}</div>{% endif %}
+        </td>
+        <td style="font-size:0.78rem;color:var(--text-secondary);">{{ t.basis or '-' }}</td>
+        <td style="font-size:0.8rem;">{{ t.cycle or '-' }}</td>
+        <td style="font-size:0.8rem;">{{ t.host or '-' }}</td>
+        <td style="font-size:0.78rem;color:var(--text-secondary);">{{ t.attendees_target or '-' }}</td>
+        <td style="text-align:center;">
+          {% if s.this_year > 0 %}<span class="status-badge status-approved">{{ s.this_year }}회</span>
+          {% else %}<span class="status-badge status-obsolete">미개최</span>{% endif %}
+        </td>
+        <td class="date-cell">{{ s.last or '-' }}</td>
+        <td style="white-space:nowrap;">
+          {% if current_user.has_edit() %}
+          <a href="{{ url_for('meeting.new', type_id=t.id) }}" class="btn btn-outline btn-sm" title="이 회의의 회의록 작성">＋ 회의록</a>
+          <button class="btn btn-outline btn-sm" title="항목 수정"
+            onclick='openType({{ {"id":t.id,"name":t.name,"basis":t.basis,"cycle":t.cycle,"host":t.host,"attendees_target":t.attendees_target,"agenda_note":t.agenda_note}|tojson }})'>✏️</button>
+          {% endif %}
+          {% if s.total > 0 %}
+          <a href="{{ url_for('meeting.records', type_id=t.id) }}" class="btn btn-outline btn-sm" title="이 회의의 회의록 보기">🗂️ {{ s.total }}</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-cell">등록된 필수회의가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if current_user.has_edit() %}
+<!-- 필수회의 항목 추가/수정 모달 -->
+<div id="typeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div class="card" style="width:560px;max-width:92vw;max-height:90vh;overflow-y:auto;">
+    <div class="card-header" id="typeModalTitle">필수회의 항목</div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('meeting.type_save') }}">
+        <input type="hidden" name="id" id="t_id">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">회의명 <span class="text-danger">*</span></label>
+          <input type="text" name="name" id="t_name" class="form-control" required>
+        </div>
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">근거 절차서(조항)</label>
+            <input type="text" name="basis" id="t_basis" class="form-control" placeholder="예: NV-P-014(5.1)">
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">개최 주기/시기</label>
+            <input type="text" name="cycle" id="t_cycle" class="form-control" placeholder="예: 분기 1회 이상">
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">주관</label>
+            <input type="text" name="host" id="t_host" class="form-control">
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">참석 대상</label>
+            <input type="text" name="attendees_target" id="t_target" class="form-control">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">주요 안건 / 비고</label>
+          <textarea name="agenda_note" id="t_agenda" class="form-control" rows="2"></textarea>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span id="t_delWrap"></span>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-outline" onclick="closeType()">취소</button>
+            <button type="submit" class="btn btn-primary">저장</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openType(d) {
+  d = d || {};
+  document.getElementById('t_id').value = d.id || '';
+  document.getElementById('t_name').value = d.name || '';
+  document.getElementById('t_basis').value = d.basis || '';
+  document.getElementById('t_cycle').value = d.cycle || '';
+  document.getElementById('t_host').value = d.host || '';
+  document.getElementById('t_target').value = d.attendees_target || '';
+  document.getElementById('t_agenda').value = d.agenda_note || '';
+  document.getElementById('typeModalTitle').textContent = d.id ? '필수회의 항목 수정' : '필수회의 항목 추가';
+  var del = document.getElementById('t_delWrap');
+  del.innerHTML = '';
+  {% if current_user.is_admin() %}
+  if (d.id) {
+    var f = document.createElement('form');
+    f.method = 'POST'; f.action = '/meeting/type/' + d.id + '/delete';
+    f.onsubmit = function(){ return confirm('이 필수회의 항목을 삭제할까요? (연결 회의록은 기타로 보존)'); };
+    f.innerHTML = '<button type="submit" class="btn btn-danger btn-sm">🗑️ 삭제</button>';
+    del.appendChild(f);
+  }
+  {% endif %}
+  document.getElementById('typeModal').style.display = 'flex';
+}
+function closeType(){ document.getElementById('typeModal').style.display = 'none'; }
+</script>
+{% endblock %}

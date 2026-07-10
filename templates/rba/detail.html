@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}{{ a.title }}{% endblock %}
+{% block breadcrumb %}🛡️ 자가진단 체크시트 › {{ a.assessment_number }}{% endblock %}
+
+{% block content %}
+{% set is_done = a.status == 'completed' %}
+
+<!-- 헤더 -->
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <span style="font-family:monospace;font-size:0.8rem;color:var(--accent);background:var(--bg-base);padding:3px 10px;border-radius:4px;">{{ a.assessment_number }}</span>
+      <span class="status-badge {% if is_done %}status-active{% else %}status-draft{% endif %}">{{ '완료' if is_done else '작성중' }}</span>
+    </div>
+    <div class="page-title">{{ a.title }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:3px;">
+      {{ a.customer }} · 진단일 {{ a.assess_date }}{% if a.assessor %} · 담당 {{ a.assessor.name }}{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('rba.export_excel', assessment_id=a.id) }}" class="btn btn-success">📊 Excel 출력</a>
+    {% if current_user.is_admin() or (a.created_by_id == current_user.id and not is_done) %}
+    <form method="POST" action="{{ url_for('rba.delete', assessment_id=a.id) }}" style="display:inline;"
+          onsubmit="return confirm('RBA 자가진단을 삭제하시겠습니까? 항목 결과도 함께 삭제되며 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('rba.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<!-- 준수율 대시보드 -->
+<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:14px;margin-bottom:20px;">
+  <div class="card" style="padding:18px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
+    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">종합 준수율</div>
+    <div style="font-size:2.6rem;font-weight:800;color:{% if a.conformance_rate>=90 %}var(--success){% elif a.conformance_rate>=70 %}var(--warning){% else %}var(--danger){% endif %};line-height:1;">
+      {{ a.conformance_rate }}<span style="font-size:1.2rem;">%</span>
+    </div>
+    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">획득 {{ a.total_score }} / 적용 {{ a.applicable_score }}점</div>
+  </div>
+  {% for label, val, color, bg in [
+      ('Priority 위반', a.priority_count, '#991b1b', '#fecaca'),
+      ('Major 위반', a.major_count, '#9a3412', '#fed7aa'),
+      ('Minor 위반', a.minor_count, '#854d0e', '#fef9c3'),
+  ] %}
+  <div class="card" style="padding:18px;text-align:center;background:{{ bg }};display:flex;flex-direction:column;justify-content:center;">
+    <div style="font-size:2.2rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+    <div style="font-size:0.78rem;font-weight:600;color:{{ color }};">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 진행 현황 -->
+<div class="card" style="margin-bottom:20px;padding:14px 20px;">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:0.82rem;">
+    <span style="font-weight:600;">평가 현황:</span>
+    <span>✅ 충족 <strong>{{ stats.conformance }}</strong></span>
+    <span style="color:#854d0e;">🟡 경미 <strong>{{ stats.minor }}</strong></span>
+    <span style="color:#9a3412;">🟠 중대 <strong>{{ stats.major }}</strong></span>
+    <span style="color:#991b1b;">🔴 최우선 <strong>{{ stats.priority }}</strong></span>
+    <span style="color:var(--text-muted);">➖ 해당없음 <strong>{{ stats.na }}</strong></span>
+    <span style="color:var(--text-muted);">⬜ 미평가 <strong>{{ stats.pending }}</strong></span>
+    <span style="margin-left:auto;color:var(--text-muted);">총 {{ total }}개 항목</span>
+  </div>
+</div>
+
+<form method="POST">
+  <input type="hidden" name="action_type" value="save_results">
+
+  {% set result_opts = [
+      ('pending','미평가'),('conformance','충족(Conformance)'),
+      ('minor','경미(Minor)'),('major','중대(Major)'),
+      ('priority','최우선(Priority)'),('na','해당없음(N/A)')] %}
+
+  {% for category, results in grouped.items() %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header" style="font-size:0.9rem;">📁 {{ category }}
+      <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">({{ results|length }}개 항목)</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" style="font-size:0.83rem;">
+        <thead>
+          <tr>
+            <th style="width:60px;">코드</th>
+            <th style="min-width:200px;">항목명</th>
+            <th style="width:50px;">배점</th>
+            <th style="width:150px;">판정결과</th>
+            <th style="min-width:160px;">증빙 설명 <small>(권장 모듈)</small></th>
+            <th style="min-width:140px;">위반/관찰</th>
+            <th style="min-width:140px;">개선조치</th>
+            <th style="width:120px;">담당부서</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in results %}
+        {% set rc = {'conformance':'#f0fdf4','minor':'#fefce8','major':'#fff7ed','priority':'#fef2f2','na':'#f9fafb'} %}
+        <tr style="background:{{ rc.get(r.result,'transparent') }};">
+          <td style="font-family:monospace;font-weight:600;color:var(--accent);">{{ r.item.code }}</td>
+          <td style="font-weight:500;">{{ r.item.name }}</td>
+          <td style="text-align:center;font-weight:700;">{{ r.item.score }}</td>
+          <td>
+            <select name="r_{{ r.id }}_result" class="form-control" style="padding:5px;font-size:0.8rem;"
+              {% if is_done %}disabled{% endif %}
+              onchange="this.closest('tr').style.background=({'conformance':'#f0fdf4','minor':'#fefce8','major':'#fff7ed','priority':'#fef2f2','na':'#f9fafb'})[this.value]||'transparent'">
+              {% for val, lbl in result_opts %}
+              <option value="{{ val }}" {% if r.result==val %}selected{% endif %}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <textarea name="r_{{ r.id }}_evidence" class="form-control" rows="2"
+              style="font-size:0.78rem;padding:5px;" {% if is_done %}readonly{% endif %}
+              placeholder="권장: {{ r.item.evidence_hint }}">{{ r.evidence_note or '' }}</textarea>
+            <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">💡 {{ r.item.evidence_hint }}</div>
+          </td>
+          <td>
+            <textarea name="r_{{ r.id }}_finding" class="form-control" rows="2"
+              style="font-size:0.78rem;padding:5px;" {% if is_done %}readonly{% endif %}
+              placeholder="위반/관찰 내용">{{ r.finding or '' }}</textarea>
+          </td>
+          <td>
+            <textarea name="r_{{ r.id }}_action" class="form-control" rows="2"
+              style="font-size:0.78rem;padding:5px;" {% if is_done %}readonly{% endif %}
+              placeholder="개선 조치">{{ r.action or '' }}</textarea>
+          </td>
+          <td>
+            <select name="r_{{ r.id }}_dept" class="form-control" style="padding:5px;font-size:0.78rem;"
+              {% if is_done %}disabled{% endif %}>
+              <option value="">-</option>
+              {% for d in departments %}
+              <option value="{{ d.id }}" {% if r.responsible_dept_id==d.id %}selected{% endif %}>{{ d.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- 하단 액션 바 -->
+  <div style="position:sticky;bottom:0;background:white;border-top:2px solid var(--border);padding:14px 20px;margin:0 -24px -24px;display:flex;gap:10px;justify-content:flex-end;box-shadow:0 -4px 12px rgba(0,0,0,0.06);">
+    {% if is_done %}
+      <span style="margin-right:auto;align-self:center;color:var(--success);font-weight:600;">✅ 완료된 자가진단입니다.</span>
+      <button type="submit" form="reopenForm" class="btn btn-outline">작성중으로 전환</button>
+    {% else %}
+      <button type="submit" class="btn btn-primary">💾 평가 결과 저장</button>
+      <button type="submit" form="completeForm" class="btn btn-success">✅ 자가진단 완료</button>
+    {% endif %}
+  </div>
+</form>
+
+{% if not is_done %}
+<form method="POST" id="completeForm" style="display:none;">
+  <input type="hidden" name="action_type" value="complete">
+</form>
+{% else %}
+<form method="POST" id="reopenForm" style="display:none;">
+  <input type="hidden" name="action_type" value="reopen">
+</form>
+{% endif %}
+{% endblock %}

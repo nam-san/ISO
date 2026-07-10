@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}고객 클레임 처리{% endblock %}
+{% block breadcrumb %}📞 고객 클레임 처리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">고객 클레임 처리 <span>Customer Complaint</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">ISO 9001 8.2.1 고객 불만 및 클레임 처리 이력 관리</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('complaint.export_excel') }}" class="btn btn-outline">📊 Excel 대장 출력</a>
+    <a href="{{ url_for('complaint.new') }}" class="btn btn-primary">＋ 클레임 접수</a>
+  </div>
+</div>
+
+<!-- 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;">
+  <div class="card" style="text-align:center;padding:20px;">
+    <div style="font-size:1.8rem;font-weight:800;color:var(--danger);">{{ stats.open }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">접수 (미처리)</div>
+  </div>
+  <div class="card" style="text-align:center;padding:20px;">
+    <div style="font-size:1.8rem;font-weight:800;color:var(--warning);">{{ stats.investigating }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">조사 진행중</div>
+  </div>
+  <div class="card" style="text-align:center;padding:20px;">
+    <div style="font-size:1.8rem;font-weight:800;color:{% if stats.overdue > 0 %}var(--danger){% else %}var(--success){% endif %};">{{ stats.overdue }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">처리기한 초과</div>
+  </div>
+</div>
+
+<!-- 검색 -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:160px;">
+        <label class="form-label">검색어</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="접수번호 / 고객사 / 내용">
+      </div>
+      <div>
+        <label class="form-label">처리 상태</label>
+        <select name="status" class="form-control">
+          <option value="">전체</option>
+          <option value="open" {% if status=='open' %}selected{% endif %}>접수</option>
+          <option value="investigating" {% if status=='investigating' %}selected{% endif %}>조사중</option>
+          <option value="resolved" {% if status=='resolved' %}selected{% endif %}>처리완료</option>
+          <option value="closed" {% if status=='closed' %}selected{% endif %}>종결</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">우선순위</label>
+        <select name="priority" class="form-control">
+          <option value="">전체</option>
+          <option value="high" {% if priority=='high' %}selected{% endif %}>긴급</option>
+          <option value="normal" {% if priority=='normal' %}selected{% endif %}>일반</option>
+          <option value="low" {% if priority=='low' %}selected{% endif %}>낮음</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('complaint.index') }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">총 <strong>{{ complaints|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>접수번호</th><th>접수일</th><th>고객사</th><th>제품/모델</th>
+          <th>유형</th><th>우선순위</th><th>처리담당</th><th>처리기한</th><th>상태</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in complaints %}
+      {% set is_overdue = c.due_date and c.due_date < today and c.status in ['open','investigating'] %}
+      <tr style="cursor:pointer;{% if is_overdue %}background:#fff5f5;{% endif %}"
+          onclick="location.href='{{ url_for('complaint.detail', cid=c.id) }}'">
+        <td style="font-size:0.8rem;color:var(--text-muted);">{{ c.complaint_number }}</td>
+        <td class="date-cell">{{ c.receipt_date }}</td>
+        <td style="font-weight:600;">{{ c.customer_name }}</td>
+        <td>{{ c.product_model or '-' }}</td>
+        <td>{{ c.complaint_type or '-' }}</td>
+        <td>
+          {% if c.priority == 'high' %}
+            <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:0.78rem;font-weight:700;">긴급</span>
+          {% elif c.priority == 'low' %}
+            <span style="background:var(--bg-base);color:var(--text-muted);padding:2px 8px;border-radius:10px;font-size:0.78rem;">낮음</span>
+          {% else %}
+            <span style="background:#f0f9ff;color:#0369a1;padding:2px 8px;border-radius:10px;font-size:0.78rem;">일반</span>
+          {% endif %}
+        </td>
+        <td>{{ c.responsible.name if c.responsible else '-' }}</td>
+        <td class="date-cell" style="{% if is_overdue %}color:var(--danger);font-weight:600;{% endif %}">
+          {{ c.due_date or '-' }}{% if is_overdue %} ⚠️{% endif %}
+        </td>
+        <td>
+          {% set status_map = {'open':'접수','investigating':'조사중','resolved':'처리완료','closed':'종결'} %}
+          {% set status_cls = {'open':'obsolete','investigating':'review','resolved':'active','closed':'draft'} %}
+          <span class="status-badge status-{{ status_cls.get(c.status,'draft') }}">
+            {{ status_map.get(c.status, c.status) }}
+          </span>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">📞 등록된 클레임이 없습니다.<br><a href="{{ url_for('complaint.new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 클레임 접수하기</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

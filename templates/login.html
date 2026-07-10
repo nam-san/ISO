@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="주식회사 누리보이스 ISO 통합경영시스템 로그인">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <title>로그인 | 누리보이스 ISO 통합경영시스템</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+
+<div class="login-bg">
+  <div class="login-bg-circles">
+    <div class="circle circle-1"></div>
+    <div class="circle circle-2"></div>
+    <div class="circle circle-3"></div>
+  </div>
+</div>
+
+<div class="login-container">
+  <div class="login-card">
+
+    <!-- 로고 영역 -->
+    <div class="login-header">
+      <div class="login-logo">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="누리보이스" class="login-logo-img">
+      </div>
+      <h1 class="login-company">주식회사 누리보이스</h1>
+      <p class="login-subtitle">ISO 통합경영시스템 (IMS)</p>
+      <div class="login-iso-chips">
+        <span class="iso-chip iso-q">ISO 9001</span>
+        <span class="iso-chip iso-e">ISO 14001</span>
+        <span class="iso-chip iso-s">ISO 45001</span>
+      </div>
+    </div>
+
+    <!-- 알림 메시지 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="flash-msg flash-{{ category }}" style="margin-bottom:1rem;">
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+    {% endwith %}
+
+    <!-- 로그인 폼 -->
+    <form id="loginForm" class="login-form" method="POST" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label class="form-label" for="employee_id">사번 (Employee ID)</label>
+        <div class="input-wrapper">
+          <span class="input-icon">👤</span>
+          <input
+            id="employee_id"
+            type="text"
+            name="employee_id"
+            class="form-input"
+            placeholder="사번을 입력하세요"
+            required
+            autocomplete="username"
+          >
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">비밀번호</label>
+        <div class="input-wrapper">
+          <span class="input-icon">🔒</span>
+          <input
+            id="password"
+            type="password"
+            name="password"
+            class="form-input"
+            placeholder="비밀번호를 입력하세요"
+            required
+            autocomplete="current-password"
+          >
+          <button type="button" class="pw-toggle" onclick="togglePassword()" title="비밀번호 표시/숨김">👁️</button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-login" id="loginBtn">
+        <span>로그인</span>
+        <span class="btn-arrow">→</span>
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <p class="login-notice">🔒 본 시스템은 사내 전용(사내한)입니다.</p>
+      <p class="login-help">로그인 문의: 품질팀 IMS 사무국</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePassword() {
+  const pw = document.getElementById('password');
+  pw.type = pw.type === 'password' ? 'text' : 'password';
+}
+document.getElementById('loginForm').addEventListener('submit', function() {
+  const btn = document.getElementById('loginBtn');
+  btn.innerHTML = '<span>로그인 중...</span>';
+  btn.disabled = true;
+});
+</script>
+</body>
+</html>

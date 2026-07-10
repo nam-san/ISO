@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ '기록 수정' if item else '기록 등록' }}{% endblock %}
+{% block breadcrumb %}📋 실행기록 관리 › {{ '기록 수정' if item else '기록 등록' }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div class="page-title">실행기록 {{ '수정' if item else '등록' }} <span>{{ 'Edit' if item else 'New' }} Record</span></div>
+  <a href="{{ url_for('records.index') }}" class="btn btn-outline">← 목록으로</a>
+</div>
+<div class="card">
+  <div class="card-header">📝 기록 정보 입력</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('records.edit', rid=item.id) if item else url_for('records.new') }}">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">기록 제목 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required placeholder="예: 2024년 1분기 수입검사 기록" value="{{ item.title if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">기록 유형 <span style="color:var(--danger)">*</span></label>
+          <select name="record_type" class="form-control" required>
+            <option value="">선택하세요</option>
+            <optgroup label="품질 (ISO 9001)">
+              <option value="수입검사기록">수입검사 기록</option>
+              <option value="공정검사기록">공정검사 기록</option>
+              <option value="최종검사기록">최종검사 기록</option>
+              <option value="고객불만기록">고객불만 처리 기록</option>
+              <option value="설계개발기록">설계/개발 기록</option>
+            </optgroup>
+            <optgroup label="환경 (ISO 14001)">
+              <option value="환경측면등록">환경측면 등록부</option>
+              <option value="법규준수평가">법규 준수 평가 기록</option>
+            </optgroup>
+            <optgroup label="안전 (ISO 45001)">
+              <option value="위험성평가">위험성 평가서</option>
+              <option value="아차사고보고">아차사고 조사 보고서</option>
+              <option value="안전점검기록">안전 점검 기록</option>
+            </optgroup>
+            <optgroup label="공통">
+              <option value="교육훈련기록">교육훈련 이수 기록</option>
+              <option value="설비점검기록">설비 점검/보전 기록</option>
+              <option value="경영검토회의록">경영검토 회의록</option>
+              <option value="기타">기타</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ISO 규격</label>
+          <select name="iso_standard" class="form-control">
+            <option value="ISO9001">ISO 9001 (품질)</option>
+            <option value="ISO14001">ISO 14001 (환경)</option>
+            <option value="ISO45001">ISO 45001 (안전)</option>
+            <option value="통합">통합</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">소관 부서 <span style="color:var(--danger)">*</span></label>
+          <select name="department_id" class="form-control" required>
+            <option value="">선택하세요</option>
+            {% for dept in departments %}
+            <option value="{{ dept.id }}">{{ dept.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">기록 발생일 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="record_date" class="form-control" required value="{{ item.record_date.strftime('%Y-%m-%d') if item and item.record_date else today }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">보존 연한 (년)</label>
+          <select name="retention_years" class="form-control">
+            <option value="3">3년</option>
+            <option value="5">5년</option>
+            <option value="7">7년</option>
+            <option value="10">10년</option>
+            <option value="15">15년</option>
+            <option value="20">20년 (영구보존)</option>
+          </select>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">기록 내용 (요약)</label>
+          <textarea name="content" class="form-control" rows="4" placeholder="기록의 주요 내용, 결과, 특이사항 등을 기입하세요.">{{ item.content if item else '' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">파일 첨부</label>
+          {% if item and item.file_name %}<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">현재 파일: {{ item.file_name }} (새 파일 선택 시 교체)</p>{% endif %}
+          <input type="file" name="file" class="form-control">
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('records.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 기록 등록' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% if item %}
+<script>
+(function () {
+  document.querySelector('select[name="record_type"]').value = {{ item.record_type|tojson }};
+  document.querySelector('select[name="iso_standard"]').value = {{ (item.iso_standard or '')|tojson }};
+  document.querySelector('select[name="department_id"]').value = {{ (item.department_id or '')|tojson }};
+  document.querySelector('select[name="retention_years"]').value = {{ (item.retention_years or 3)|string|tojson }};
+})();
+</script>
+{% else %}
+<script>document.querySelector('select[name="retention_years"]').value = '3';</script>
+{% endif %}
+{% endblock %}

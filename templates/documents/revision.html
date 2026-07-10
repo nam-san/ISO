@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.doc_number }} 개정본 등록{% endblock %}
+{% block breadcrumb %}📁 기준문서 관리 › {{ doc.doc_number }} › 개정{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">기준문서 개정 등록</div>
+    <div class="page-subtitle">[{{ doc.doc_number }}] {{ doc.title }} 문서의 새로운 개정본을 등록합니다.</div>
+  </div>
+  <a href="{{ url_for('documents.detail', doc_id=doc.id) }}" class="btn btn-secondary">
+    <span>↩️ 상세 정보로</span>
+  </a>
+</div>
+
+<div class="form-container" style="max-width: 650px; margin: 0 auto;">
+  <div class="card-header">
+    <h3 class="card-title">개정 정보 입력</h3>
+  </div>
+
+  <form action="{{ url_for('documents.revision', doc_id=doc.id) }}" method="POST" enctype="multipart/form-data" class="standard-form">
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); background-color: var(--bg-body); padding: var(--spacing-sm); border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: var(--spacing-md);">
+      <div>
+        <span style="font-size: var(--font-xs); color: var(--text-muted); display: block; margin-bottom: 4px;">현재 배포 버전</span>
+        <strong style="font-size: var(--font-lg); color: var(--text-primary);">v{{ doc.version }}</strong>
+      </div>
+      <div>
+        <span style="font-size: var(--font-xs); color: var(--text-muted); display: block; margin-bottom: 4px;">문서 형식/유형</span>
+        <strong style="font-size: var(--font-md); color: var(--text-primary);">{{ doc.doc_type }} ({{ doc.iso_standard }})</strong>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom: var(--spacing-md);">
+      <label for="iso_standard" class="form-label">적용 ISO 규격 <span class="text-danger">*</span></label>
+      <select id="iso_standard" name="iso_standard" class="form-control" required>
+        <option value="ISO9001" {% if doc.iso_standard == 'ISO9001' %}selected{% endif %}>ISO 9001 (품질경영)</option>
+        <option value="ISO14001" {% if doc.iso_standard == 'ISO14001' %}selected{% endif %}>ISO 14001 (환경경영)</option>
+        <option value="ISO45001" {% if doc.iso_standard == 'ISO45001' %}selected{% endif %}>ISO 45001 (안전보건경영)</option>
+        <option value="통합" {% if doc.iso_standard == '통합' %}selected{% endif %}>통합 (2개 이상 공동 적용)</option>
+      </select>
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 규격이 통합(품질+환경 등)되거나 변경되는 경우 수정해 주세요.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="version" class="form-label">개정 버전 번호 <span class="text-danger">*</span></label>
+      <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+        <input type="text" id="version" name="version" class="form-control" style="max-width: 150px;" required value="{{ rec_minor }}" placeholder="예: 1.1">
+        <div style="display: flex; gap: 4px;">
+          <button type="button" class="btn btn-sm btn-secondary" onclick="setVersion('{{ rec_minor }}')">마이너 개정 (v{{ rec_minor }})</button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="setVersion('{{ rec_major }}')">메이저 개정 (v{{ rec_major }})</button>
+        </div>
+      </div>
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 마이너 개정(소폭 수정) 시 소수점 자리를 올리고, 메이저 개정(대폭 개정) 시 정수 자리를 올립니다.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="change_reason" class="form-label">개정 사유 (Revision Reason) <span class="text-danger">*</span></label>
+      <textarea id="change_reason" name="change_reason" rows="4" class="form-control" required placeholder="예: 조직 개편에 따른 소관 부서 명칭 반영 및 연구소 회로 설계 검토 항목 구체화"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="file" class="form-label">개정본 첨부파일 (PDF 형식) <span class="text-danger">*</span></label>
+      <input type="file" id="file" name="file" class="form-control" accept=".pdf" required>
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 기존에 등록된 이전 파일은 역사 이력으로 자동 보존됩니다.</p>
+    </div>
+
+    <div class="form-actions" style="margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+      <a href="{{ url_for('documents.detail', doc_id=doc.id) }}" class="btn btn-secondary">취소</a>
+      <button type="submit" class="btn btn-primary" style="background-color: var(--iso-q); border-color: var(--iso-q);">개정본 등록</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function setVersion(val) {
+  document.getElementById('version').value = val;
+}
+</script>
+{% endblock %}

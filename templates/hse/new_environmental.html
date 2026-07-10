@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ '환경측면 영향평가 수정' if item else '신규 환경측면 영향평가 등록' }}{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 관리 › 환경 영향평가 › {{ '수정' if item else '등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">환경측면 영향평가 {{ '수정' if item else '등록' }}</div>
+    <div class="page-subtitle">특정 작업 공정의 유해 환경 측면을 파악하고 위험 요소를 평가합니다.</div>
+  </div>
+  <a href="{{ url_for('hse.environmental') }}" class="btn btn-secondary">
+    <span>↩️ 목록으로</span>
+  </a>
+</div>
+
+<div class="form-container" style="max-width: 700px; margin: 0 auto;">
+  <div class="card-header">
+    <h3 class="card-title">환경 영향평가서 입력</h3>
+  </div>
+
+  <form action="{{ url_for('hse.edit_environmental', aid=item.id) if item else url_for('hse.new_environmental') }}" method="POST" class="standard-form">
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing-md);">
+      <div class="form-group">
+        <label for="site" class="form-label">사업장 <span class="text-danger">*</span></label>
+        <select id="site" name="site" class="form-control" required>
+          <option value="본사">본사 (서울)</option>
+          <option value="제조공장">제조공장 (나주)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="process" class="form-label">단위 공정/활동 명칭 <span class="text-danger">*</span></label>
+        <input type="text" id="process" name="process" class="form-control" required placeholder="예: 기계 조립 공정, 포장 작업" value="{{ item.process if item else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="department_id" class="form-label">평가 부서 <span class="text-danger">*</span></label>
+        <select id="department_id" name="department_id" class="form-control" required>
+          <option value="">-- 부서 선택 --</option>
+          {% for dept in departments %}
+          <option value="{{ dept.id }}">{{ dept.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
+      <div class="form-group">
+        <label for="aspect" class="form-label">환경 측면 (Aspect, 원인) <span class="text-danger">*</span></label>
+        <input type="text" id="aspect" name="aspect" class="form-control" required placeholder="예: 유성 폐수 배출, 폐토너 발생, 소음 유발" value="{{ item.aspect if item else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="impact" class="form-label">환경 영향 (Impact, 결과) <span class="text-danger">*</span></label>
+        <input type="text" id="impact" name="impact" class="form-control" required placeholder="예: 토양/수질 오염, 자원 고갈, 주민 민원" value="{{ item.impact if item else '' }}">
+      </div>
+    </div>
+
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); background-color: var(--bg-body); padding: var(--spacing-sm); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+      <div class="form-group">
+        <label for="frequency" class="form-label">발생 빈도 (Frequency, 1~5) <span class="text-danger">*</span></label>
+        <select id="frequency" name="frequency" class="form-control" onchange="calculateScore()">
+          <option value="1">1 (매우 드묾 - 연 1회 이하)</option>
+          <option value="2">2 (드묾 - 반기 1회)</option>
+          <option value="3">3 (보통 - 분기 1회)</option>
+          <option value="4">4 (자주 발생 - 월 1회)</option>
+          <option value="5">5 (상시 발생 - 주 1회 이상)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="severity" class="form-label">영향 강도 (Severity, 1~5) <span class="text-danger">*</span></label>
+        <select id="severity" name="severity" class="form-control" onchange="calculateScore()">
+          <option value="1">1 (영향 없음 - 법적 규제 외)</option>
+          <option value="2">2 (경미한 영향 - 사내 자체 조치 가능)</option>
+          <option value="3">3 (보통 영향 - 법적 기준 미달 가능성)</option>
+          <option value="4">4 (심각한 영향 - 외부 규제 기관 경고 수준)</option>
+          <option value="5">5 (치명적인 영향 - 영업 정지 및 법적 소송)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin: var(--spacing-sm) 0; font-size: var(--font-sm); font-weight: 500;">
+      평가 점수: <span id="scoreText" style="color: var(--color-primary); font-size: var(--font-lg);">1점</span>
+      (판정: <span id="ratingText" class="badge badge-success">일반 관리</span>)
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 빈도와 강도의 곱이 12점 이상인 경우 "중요 환경측면"으로 식별되어 특별 대책을 수립해야 합니다.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="control_measure" class="form-label">현재 통제/관리 대책 <span class="text-danger">*</span></label>
+      <textarea id="control_measure" name="control_measure" rows="3" class="form-control" required placeholder="예: MSDS 경고 표지 부착, 폐수 전용 수거함 비치 및 폐기 위탁 업체 계약 이행">{{ item.control_measure if item else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="evaluation_date" class="form-label">평가 일자</label>
+      <input type="date" id="evaluation_date" name="evaluation_date" class="form-control" value="{{ item.evaluation_date.strftime('%Y-%m-%d') if item and item.evaluation_date else today }}">
+    </div>
+
+    <div class="form-actions" style="margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+      <a href="{{ url_for('hse.environmental') }}" class="btn btn-secondary">취소</a>
+      <button type="submit" class="btn btn-primary">{{ '수정 저장' if item else '평가 등록' }}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function calculateScore() {
+  const f = parseInt(document.getElementById('frequency').value) || 1;
+  const s = parseInt(document.getElementById('severity').value) || 1;
+  const total = f * s;
+  const scoreText = document.getElementById('scoreText');
+  const ratingText = document.getElementById('ratingText');
+  scoreText.textContent = total + '점';
+  if (total >= 12) {
+    ratingText.textContent = '중요 환경측면';
+    ratingText.className = 'badge badge-danger';
+  } else {
+    ratingText.textContent = '일반 관리';
+    ratingText.className = 'badge badge-success';
+  }
+}
+{% if item %}
+document.getElementById('frequency').value = {{ (item.frequency or 1)|string|tojson }};
+document.getElementById('severity').value = {{ (item.severity or 1)|string|tojson }};
+document.getElementById('department_id').value = {{ (item.department_id or '')|tojson }};
+document.getElementById('site').value = {{ (item.site or '제조공장')|tojson }};
+{% endif %}
+calculateScore();
+</script>
+{% endblock %}

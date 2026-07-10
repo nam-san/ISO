@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block title %}{{ mr.title }}{% endblock %}
+{% block breadcrumb %}📋 경영검토 › {{ mr.review_number }}{% endblock %}
+
+{% block content %}
+{% set is_approved = mr.status == 'approved' %}
+
+<!-- ── 헤더 ── -->
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <span style="font-family:monospace;font-size:0.82rem;color:var(--accent);background:var(--bg-base);padding:3px 10px;border-radius:4px;">{{ mr.review_number }}</span>
+      <span class="status-badge {% if is_approved %}status-active{% elif mr.status=='in_review' %}status-review{% else %}status-draft{% endif %}">
+        {{ {'draft':'작성중','in_review':'검토중','approved':'승인완료'}.get(mr.status, mr.status) }}
+      </span>
+    </div>
+    <div class="page-title">{{ mr.title }}</div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      검토 기간: {{ mr.period_start }} ~ {{ mr.period_end }} &nbsp;|&nbsp;
+      개최일: <strong>{{ mr.review_date }}</strong>
+      {% if mr.chairman %} &nbsp;|&nbsp; 의장: {{ mr.chairman.name }}{% endif %}
+      {% if mr.venue %} &nbsp;|&nbsp; 장소: {{ mr.venue }}{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    {% if not is_approved %}
+    <form method="POST" style="display:inline;">
+      <input type="hidden" name="action_type" value="refresh_snapshot">
+      <button type="submit" class="btn btn-outline btn-sm" title="현황 데이터를 지금 시점으로 재집계">🔄 현황 갱신</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('review.export_excel', review_id=mr.id) }}" class="btn btn-success">📊 Excel 출력</a>
+    {% if current_user.is_admin() or (mr.created_by_id == current_user.id and not is_approved) %}
+    <form method="POST" action="{{ url_for('review.delete', review_id=mr.id) }}" style="display:inline;"
+          onsubmit="return confirm('경영검토를 삭제하시겠습니까? 실행계획도 함께 삭제되며 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('review.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+<!-- ── 현황 스냅샷 카드 ── -->
+<div class="section-title"><h3>📊 현황 데이터 스냅샷 <small style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">— 경영검토 생성 시점 기준 (🔄 갱신 가능)</small></h3></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+  {% set kpis = [
+    ('CAPA 미결', snap.get('capa_open',0), '#dc2626' if snap.get('capa_open',0)>0 else '#16a34a', '시정조치 진행 중'),
+    ('CAPA 기한초과', snap.get('capa_overdue',0), '#dc2626' if snap.get('capa_overdue',0)>0 else '#16a34a', '즉시 조치 필요'),
+    ('미처리 클레임', snap.get('complaint_open',0), '#dc2626' if snap.get('complaint_open',0)>0 else '#16a34a', '고객 응대 필요'),
+    ('법규 미준수', snap.get('legal_non_compliant',0), '#dc2626' if snap.get('legal_non_compliant',0)>0 else '#16a34a', '즉시 개선 필요'),
+    ('기간 내 심사', snap.get('audit_completed',0), '#2563eb', '완료된 심사'),
+    ('기간 내 교육', snap.get('training_total',0), '#7c3aed', '실시된 교육'),
+    ('설계변경 요청', snap.get('dcr_total',0), '#0891b2', '기간 내 접수'),
+    ('보존연한 초과', snap.get('disposal_overdue',0), '#f59e0b' if snap.get('disposal_overdue',0)>0 else '#16a34a', '기록 폐기 필요'),
+  ] %}
+  {% for label, val, color, sub in kpis %}
+  <div class="card" style="text-align:center;padding:16px 10px;">
+    <div style="font-size:1.8rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+    <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-top:3px;">{{ label }}</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">{{ sub }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── 탭 레이아웃 ── -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px;" id="tabBar">
+  <button class="tab-btn active" onclick="switchTab('agenda')">📝 안건 작성</button>
+  <button class="tab-btn" onclick="switchTab('actions')">
+    ✅ 실행계획
+    {% if action_stats.overdue > 0 %}<span style="background:#dc2626;color:white;font-size:0.65rem;padding:1px 6px;border-radius:8px;margin-left:4px;">{{ action_stats.overdue }}</span>{% endif %}
+  </button>
+  {% if is_approved and current_user.is_admin() == false %}{% else %}
+  {% if current_user.is_admin() and not is_approved %}
+  <button class="tab-btn" onclick="switchTab('approve')">🔏 승인</button>
+  {% endif %}
+  {% endif %}
+</div>
+
+<!-- ════════════════════════════════
+     탭 1: 안건 작성
+════════════════════════════════ -->
+<div id="tab-agenda">
+  <form method="POST">
+    <input type="hidden" name="action_type" value="save_agenda">
+
+    {% macro agenda_block(field_name, label, icon, hint, value) %}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header" style="font-size:0.88rem;">
+        {{ icon }} {{ label }}
+        {% if hint %}<span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;margin-left:8px;">{{ hint }}</span>{% endif %}
+      </div>
+      <div class="card-body" style="padding:12px 16px;">
+        <textarea name="{{ field_name }}" class="form-control" rows="4"
+          {% if is_approved %}readonly{% endif %}
+          style="font-size:0.88rem;line-height:1.7;">{{ value or '' }}</textarea>
+      </div>
+    </div>
+    {% endmacro %}
+
+    <div class="section-title"><h3>인풋 (Input) — 검토 안건</h3></div>
+    {{ agenda_block('agenda_prev_actions','전기 경영검토 후속조치 이행 현황','🔁','이전 경영검토에서 결정된 사항의 이행 결과를 기술하세요.',mr.agenda_prev_actions) }}
+    {{ agenda_block('agenda_policy','경영방침 및 목표 달성 현황','🎯','품질/환경/안전 목표별 달성률, 미달성 항목의 원인과 대응 방향.',mr.agenda_policy) }}
+    {{ agenda_block('agenda_audit','내부심사 결과 및 시사점','🔍','기간 내 내부심사 실시 현황, 주요 발견사항, 개선 시사점.',mr.agenda_audit) }}
+    {{ agenda_block('agenda_capa','시정조치(CAPA) 현황','⚡','현재 진행 중인 CAPA 현황, 종결 현황, 효과성 검증 결과.',mr.agenda_capa) }}
+    {{ agenda_block('agenda_customer','고객 피드백 및 클레임 현황','📞','접수된 클레임 건수, 유형 분석, 처리 현황, 고객 만족도 추세.',mr.agenda_customer) }}
+    {{ agenda_block('agenda_process','프로세스 성과 및 제품·서비스 적합성','⚙️','핵심 프로세스 KPI 달성 현황, 제품 및 서비스 품질 적합성 결과.',mr.agenda_process) }}
+    {{ agenda_block('agenda_supplier','외부공급자 및 협력업체 성과','🏭','주요 공급업체 평가 결과, 납기·품질 이슈 현황.',mr.agenda_supplier) }}
+    {{ agenda_block('agenda_legal','법규 및 규제 준수 현황','⚖️','적용 법규 준수 현황, 미준수·부분준수 항목의 개선 계획.',mr.agenda_legal) }}
+    {{ agenda_block('agenda_risk','리스크 및 기회 현황','🔮','식별된 리스크의 현황, 새로운 리스크·기회 요인.',mr.agenda_risk) }}
+    {{ agenda_block('agenda_resources','자원 충족성 평가','🏗️','인력, 설비, 인프라 등 자원의 적정성 평가.',mr.agenda_resources) }}
+    {{ agenda_block('agenda_hse','환경·안전(HSE) 성과','🌿','환경측면 관리 현황, 위험성평가 갱신 현황, 사고·아차사고 발생 현황.',mr.agenda_hse) }}
+
+    <div class="section-title" style="margin-top:24px;"><h3>아웃풋 (Output) — 결정사항</h3></div>
+    {{ agenda_block('output_improvements','개선 기회 및 결정사항','💡','경영검토를 통해 도출된 개선 기회, 구체적 실행 결정사항.',mr.output_improvements) }}
+    {{ agenda_block('output_changes','경영시스템 변경 필요사항','🔄','절차서, 목표, 조직, 프로세스 등 변경이 필요한 사항.',mr.output_changes) }}
+    {{ agenda_block('output_resources','자원 필요사항','💰','추가로 필요한 인력, 예산, 장비, 기술 등.',mr.output_resources) }}
+
+    <div class="section-title" style="margin-top:24px;"><h3>종합 회의록</h3></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-body" style="padding:12px 16px;">
+        <textarea name="minutes" class="form-control" rows="6"
+          {% if is_approved %}readonly{% endif %}
+          placeholder="참석자 발언, 주요 논의사항, 결정 경위 등 자유 형식으로 작성하세요."
+          style="font-size:0.88rem;line-height:1.7;">{{ mr.minutes or '' }}</textarea>
+      </div>
+    </div>
+
+    {% if not is_approved %}
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:32px;">
+      <button type="submit" class="btn btn-primary">💾 안건 저장</button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+
+<!-- ════════════════════════════════
+     탭 2: 실행계획
+════════════════════════════════ -->
+<div id="tab-actions" style="display:none;">
+
+  <!-- 현황 요약 -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+    {% for label, val, color in [
+      ('전체', action_stats.total, '#2563eb'),
+      ('완료', action_stats.completed, '#16a34a'),
+      ('진행중', action_stats.in_progress, '#0891b2'),
+      ('대기', action_stats.pending, '#6b7280'),
+      ('기한초과', action_stats.overdue, '#dc2626'),
+    ] %}
+    <div class="card" style="text-align:center;padding:14px 8px;">
+      <div style="font-size:1.6rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 실행계획 추가 -->
+  {% if not is_approved %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">＋ 실행계획 추가</div>
+    <div class="card-body">
+      <form method="POST">
+        <input type="hidden" name="action_type" value="add_action">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label class="form-label">구분</label>
+            <select name="category" class="form-control">
+              <option value="개선">개선</option>
+              <option value="변경">변경</option>
+              <option value="자원">자원</option>
+              <option value="HSE">HSE</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">담당자</label>
+            <select name="responsible_id" class="form-control">
+              <option value="">-- 선택 --</option>
+              {% for u in users %}
+              <option value="{{ u.id }}">{{ u.name }}{% if u.department %} ({{ u.department.name }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="form-label">실행항목 <span style="color:var(--danger)">*</span></label>
+            <textarea name="action_item" class="form-control" rows="2" required placeholder="무엇을, 어떻게 할 것인지 구체적으로 작성하세요."></textarea>
+          </div>
+          <div>
+            <label class="form-label">완료 기한</label>
+            <input type="date" name="due_date" class="form-control">
+          </div>
+          <div style="display:flex;align-items:flex-end;">
+            <button type="submit" class="btn btn-primary" style="width:100%;">실행계획 추가</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 실행계획 목록 -->
+  {% set actions_list = actions %}
+  {% if actions_list %}
+  <div class="card">
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr><th>구분</th><th>실행항목</th><th>담당자</th><th>기한</th><th>상태</th><th>결과/비고</th>{% if not is_approved %}<th>업데이트</th>{% endif %}</tr>
+        </thead>
+        <tbody>
+        {% for a in actions_list %}
+        {% set days_left = (a.due_date - today).days if a.due_date else None %}
+        <tr style="{% if a.status=='completed' %}background:#f0fdf4;{% elif a.status=='overdue' %}background:#fff5f5;{% endif %}">
+          <td><span style="background:var(--bg-base);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:0.78rem;">{{ a.category }}</span></td>
+          <td style="font-size:0.88rem;max-width:280px;white-space:pre-wrap;">{{ a.action_item }}</td>
+          <td>{{ a.responsible.name if a.responsible else '-' }}</td>
+          <td class="date-cell">
+            {{ a.due_date or '-' }}
+            {% if days_left is not none and a.status not in ['completed'] %}
+              {% if days_left < 0 %}
+                <div style="color:var(--danger);font-size:0.7rem;font-weight:600;">D+{{ (-days_left) }}</div>
+              {% elif days_left <= 7 %}
+                <div style="color:var(--warning);font-size:0.7rem;font-weight:600;">D-{{ days_left }}</div>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td>
+            <span class="status-badge
+              {% if a.status=='completed' %}status-active
+              {% elif a.status=='overdue' %}status-danger
+              {% elif a.status=='in_progress' %}status-review
+              {% else %}status-draft{% endif %}">
+              {{ {'pending':'대기','in_progress':'진행중','completed':'완료','overdue':'기한초과'}.get(a.status, a.status) }}
+            </span>
+          </td>
+          <td style="font-size:0.82rem;max-width:200px;white-space:pre-wrap;color:var(--text-muted);">{{ a.result or '' }}</td>
+          {% if not is_approved %}
+          <td>
+            <button class="btn btn-outline btn-sm"
+              onclick="openActionModal({{ a.id }}, '{{ a.status }}', {{ a.result|tojson if a.result else '""' }})">
+              수정
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:40px;">
+    <div style="font-size:2rem;margin-bottom:8px;">📋</div>
+    <p style="color:var(--text-muted);">등록된 실행계획이 없습니다. 위 폼에서 추가하세요.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ════════════════════════════════
+     탭 3: 승인 (admin 전용)
+════════════════════════════════ -->
+{% if current_user.is_admin() and not is_approved %}
+<div id="tab-approve" style="display:none;">
+  <div class="card" style="max-width:600px;">
+    <div class="card-header">🔏 경영검토 최종 승인</div>
+    <div class="card-body">
+      <div class="card" style="background:#fffbeb;border:1px solid #fcd34d;margin-bottom:16px;padding:14px 18px;">
+        <strong>승인 전 확인사항</strong>
+        <ul style="margin:8px 0 0 16px;font-size:0.85rem;line-height:1.9;color:var(--text-secondary);">
+          <li>모든 인풋 안건이 충실히 작성되었는가</li>
+          <li>아웃풋(결정사항, 변경사항, 자원)이 명확히 기술되었는가</li>
+          <li>실행계획에 담당자와 기한이 지정되었는가</li>
+        </ul>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="action_type" value="approve">
+        <div style="margin-bottom:14px;">
+          <label class="form-label">승인 의견 (선택)</label>
+          <textarea name="approval_comment" class="form-control" rows="3"
+            placeholder="승인 의견이나 추가 지시사항을 입력하세요."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary"
+          onclick="return confirm('경영검토 [{{ mr.review_number }}]를 최종 승인하시겠습니까?\n승인 후에는 내용을 수정할 수 없습니다.')">
+          ✅ 최종 승인
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 승인 완료 배너 -->
+{% if is_approved %}
+<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:16px 20px;margin-top:20px;display:flex;align-items:center;gap:12px;">
+  <span style="font-size:1.5rem;">✅</span>
+  <div>
+    <div style="font-weight:700;color:#166534;">경영검토 승인 완료</div>
+    <div style="font-size:0.82rem;color:#15803d;">
+      {{ mr.approved_at.strftime('%Y년 %m월 %d일 %H:%M') }} — {{ mr.approved_by.name }}
+      {% if mr.approval_comment %} · "{{ mr.approval_comment }}"{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── 실행계획 수정 모달 ── -->
+<div id="actionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:28px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:16px;">✏️ 실행계획 상태 업데이트</div>
+    <form method="POST" id="actionForm">
+      <input type="hidden" name="action_type" value="update_action">
+      <input type="hidden" name="action_id" id="modalActionId">
+      <div style="margin-bottom:12px;">
+        <label class="form-label">상태</label>
+        <select name="status" id="modalStatus" class="form-control">
+          <option value="pending">대기</option>
+          <option value="in_progress">진행중</option>
+          <option value="completed">완료</option>
+          <option value="overdue">기한초과</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label class="form-label">완료 결과 / 비고</label>
+        <textarea name="result" id="modalResult" class="form-control" rows="3"
+          placeholder="완료 내용, 조치 결과 등을 입력하세요."></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" onclick="closeActionModal()">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name) {
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).style.display = 'block';
+  event.target.classList.add('active');
+}
+
+function openActionModal(id, status, result) {
+  document.getElementById('modalActionId').value = id;
+  document.getElementById('modalStatus').value = status;
+  document.getElementById('modalResult').value = result || '';
+  document.getElementById('actionModal').style.display = 'flex';
+}
+function closeActionModal() {
+  document.getElementById('actionModal').style.display = 'none';
+}
+document.getElementById('actionModal').addEventListener('click', function(e) {
+  if (e.target === this) closeActionModal();
+});
+</script>
+<style>
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  margin-bottom: -2px;
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.status-badge.status-danger { background: #fee2e2; color: #991b1b; }
+</style>
+{% endblock %}

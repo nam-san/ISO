@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}사용자 관리{% endblock %}
+{% block breadcrumb %}⚙️ 시스템 관리 › 사용자 관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">사용자 관리</div>
+    <div class="page-subtitle">시스템 사용자 및 부서 권한을 관리합니다.</div>
+  </div>
+  <a href="{{ url_for('admin.new_user') }}" class="btn btn-primary">
+    <span>➕ 신규 사용자 등록</span>
+  </a>
+</div>
+
+<div class="stats-grid" style="margin-bottom: var(--spacing-lg);">
+  <div class="stats-card card-total">
+    <div class="stats-icon">👥</div>
+    <div class="stats-value">{{ user_count }}명</div>
+    <div class="stats-label">전체 사용자 수</div>
+  </div>
+  <div class="stats-card card-info">
+    <div class="stats-icon">🏢</div>
+    <div class="stats-value">{{ dept_count }}개</div>
+    <div class="stats-label">등록된 부서 수</div>
+  </div>
+</div>
+
+<div class="table-container">
+  <div class="card-header">
+    <h3 class="card-title">사내 임직원 계정 목록</h3>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>사번</th>
+        <th>이름</th>
+        <th>부서</th>
+        <th>직위</th>
+        <th>이메일</th>
+        <th>시스템 권한</th>
+        <th>상태</th>
+        <th style="width: 100px; text-align: center;">동작</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr class="{% if not user.is_active %}row-inactive{% endif %}">
+        <td><strong>{{ user.employee_id }}</strong></td>
+        <td>{{ user.name }}</td>
+        <td>{{ user.department.name if user.department else '지정 없음' }}</td>
+        <td>{{ user.position or '-' }}</td>
+        <td>{{ user.email or '-' }}</td>
+        <td>
+          {% if user.role == 'admin' %}
+          <span class="badge badge-danger">시스템 관리자</span>
+          {% elif user.role == 'manager' %}
+          <span class="badge badge-warning">그룹장/PM/PL</span>
+          {% elif user.role == 'viewer' %}
+          <span class="badge badge-secondary">열람 전용</span>
+          {% else %}
+          <span class="badge badge-info">프로</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if user.is_active %}
+          <span class="badge badge-success">활성</span>
+          {% else %}
+          <span class="badge badge-secondary">비활성</span>
+          {% endif %}
+        </td>
+        <td style="text-align: center; white-space: nowrap;">
+          <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline" title="정보 수정">✏️</a>
+          <form action="{{ url_for('admin.reset_password', user_id=user.id) }}" method="POST" style="display:inline;"
+                onsubmit="return confirm('{{ user.name }} 님의 비밀번호를 초기화하시겠습니까? (nurivoice2024!)');">
+            <button type="submit" class="btn btn-sm btn-outline" title="비밀번호 초기화">🔑</button>
+          </form>
+          {% if user.employee_id != 'admin' and user.id != current_user.id %}
+          <form action="{{ url_for('admin.toggle_user', user_id=user.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('이 사용자의 계정 상태를 변경하시겠습니까?');">
+            {% if user.is_active %}
+            <button type="submit" class="btn btn-sm btn-danger">비활성화</button>
+            {% else %}
+            <button type="submit" class="btn btn-sm btn-success">활성화</button>
+            {% endif %}
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="text-center text-muted" style="padding: var(--spacing-xl);">등록된 사용자가 없습니다.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
