@@ -5,18 +5,18 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <div class="page-title">설계/개발 변경 관리 <span>Design Change Request</span></div>
-    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">ISO 9001 8.3.6 설계·개발 변경 관리 이력</p>
+    <div class="page-title">4M 변경 관리 <span>4M Change Management</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">NV-P-038 4M(인력·설비·자재·공법) 변경 관리 — 신고 → 부서검토 → 품질승인 → 고객승인</p>
   </div>
   <div style="display:flex;gap:10px;">
     <a href="{{ url_for('design.export_excel') }}" class="btn btn-outline">📊 Excel 대장 출력</a>
-    <a href="{{ url_for('design.new') }}" class="btn btn-primary">＋ 변경 요청 등록</a>
+    <a href="{{ url_for('design.new') }}" class="btn btn-primary">＋ 4M 변경 신고</a>
   </div>
 </div>
 
 <!-- 현황 카드 -->
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
-  {% for label, key, color in [('초안', 'draft', '#94a3b8'), ('검토중', 'review', '#f59e0b'), ('승인', 'approved', '#22c55e'), ('반영완료', 'implemented', '#2563eb')] %}
+  {% for label, key, color in [('작성중', 'draft', '#94a3b8'), ('부서검토중', 'review', '#f59e0b'), ('승인완료', 'approved', '#22c55e'), ('반영완료', 'implemented', '#2563eb')] %}
   <div class="card" style="text-align:center;padding:18px;">
     <div style="font-size:1.6rem;font-weight:800;color:{{ color }};">{{ stats[key] }}</div>
     <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ label }}</div>
@@ -67,7 +67,7 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th>변경번호</th><th>제품명</th><th>변경유형</th><th>변경 제목</th>
+          <th>신고번호</th><th>제품명</th><th>4M 구분</th><th>변경 제목</th>
           <th>요청일</th><th>적용예정일</th><th>요청자</th><th>승인자</th><th>상태</th>
         </tr>
       </thead>
@@ -76,10 +76,12 @@
       <tr style="cursor:pointer;" onclick="location.href='{{ url_for('design.detail', dcid=dc.id) }}'">
         <td style="font-size:0.8rem;color:var(--text-muted);">{{ dc.change_number }}</td>
         <td style="font-weight:600;">{{ dc.product_name }}</td>
-        <td>
-          <span style="background:var(--iso-q-light);color:var(--iso-q);padding:2px 8px;border-radius:10px;font-size:0.78rem;">
-            {{ dc.change_type or '-' }}
-          </span>
+        <td style="white-space:nowrap;">
+          {% for lb, on in [('사람',dc.m4_man),('기계',dc.m4_machine),('재료',dc.m4_material),('방법',dc.m4_method)] %}
+            {% if on %}<span style="background:var(--iso-q-light);color:var(--iso-q);padding:2px 7px;border-radius:9px;font-size:0.74rem;margin-right:2px;">{{ lb }}</span>{% endif %}
+          {% endfor %}
+          {% if dc.m4_etc %}<span style="background:var(--bg-base);color:var(--text-secondary);padding:2px 7px;border-radius:9px;font-size:0.74rem;">기타</span>{% endif %}
+          {% if not (dc.m4_man or dc.m4_machine or dc.m4_material or dc.m4_method or dc.m4_etc) %}<span style="color:var(--text-muted);font-size:0.78rem;">{{ dc.change_type or '-' }}</span>{% endif %}
         </td>
         <td>{{ dc.change_title }}</td>
         <td class="date-cell">{{ dc.request_date or '-' }}</td>
@@ -87,13 +89,13 @@
         <td>{{ dc.requester.name if dc.requester else '-' }}</td>
         <td>{{ dc.approver.name if dc.approver else '-' }}</td>
         <td>
-          {% set sm = {'draft':'초안','review':'검토중','approved':'승인','implemented':'반영완료','rejected':'기각'} %}
-          {% set sc = {'draft':'draft','review':'review','approved':'active','implemented':'active','rejected':'obsolete'} %}
+          {% set sm = {'draft':'작성중','review':'부서검토중','qa':'품질검토중','customer':'고객승인중','approved':'승인완료','implemented':'반영완료','rejected':'반려'} %}
+          {% set sc = {'draft':'draft','review':'review','qa':'review','customer':'active','approved':'approved','implemented':'approved','rejected':'obsolete'} %}
           <span class="status-badge status-{{ sc.get(dc.status,'draft') }}">{{ sm.get(dc.status, dc.status) }}</span>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="empty-cell">🔬 등록된 설계변경 요청이 없습니다.<br><a href="{{ url_for('design.new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 변경 요청 등록하기</a></td></tr>
+      <tr><td colspan="9" class="empty-cell">🔬 등록된 4M 변경 신고가 없습니다.<br><a href="{{ url_for('design.new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 4M 변경 신고하기</a></td></tr>
       {% endfor %}
       </tbody>
     </table>

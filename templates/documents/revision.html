@@ -19,15 +19,20 @@
   </div>
 
   <form action="{{ url_for('documents.revision', doc_id=doc.id) }}" method="POST" enctype="multipart/form-data" class="standard-form">
-    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); background-color: var(--bg-body); padding: var(--spacing-sm); border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: var(--spacing-md);">
+    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); background-color: var(--bg-base); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: var(--spacing-md);">
       <div>
-        <span style="font-size: var(--font-xs); color: var(--text-muted); display: block; margin-bottom: 4px;">현재 배포 버전</span>
-        <strong style="font-size: var(--font-lg); color: var(--text-primary);">v{{ doc.version }}</strong>
+        <span style="font-size: var(--font-xs); color: var(--text-muted); display: block; margin-bottom: 4px;">현행 문서 / 개정차수</span>
+        <strong style="font-size: 1rem; color: var(--text-primary);">{{ doc.doc_number }} · REV{{ doc.revision_no or 0 }}</strong>
       </div>
       <div>
         <span style="font-size: var(--font-xs); color: var(--text-muted); display: block; margin-bottom: 4px;">문서 형식/유형</span>
-        <strong style="font-size: var(--font-md); color: var(--text-primary);">{{ doc.doc_type }} ({{ doc.iso_standard }})</strong>
+        <strong style="font-size: 0.92rem; color: var(--text-primary);">{{ doc.doc_type }} ({{ doc.iso_standard }})</strong>
       </div>
+    </div>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:10px 14px;border-radius:6px;font-size:0.8rem;margin-bottom:16px;line-height:1.55;">
+      ℹ️ 개정본은 <strong>별도 문서로 발행</strong>되어 승인 절차를 거칩니다. 승인 전까지 기존 문서는 <strong>현행(배포중)</strong>으로 유지되며,
+      개정본이 승인되면 기존 문서는 <strong>구버전(폐기대기)</strong>으로 전환되어 승인권자가 최종 삭제합니다.
     </div>
 
     <div class="form-group" style="margin-bottom: var(--spacing-md);">
@@ -42,15 +47,9 @@
     </div>
 
     <div class="form-group">
-      <label for="version" class="form-label">개정 버전 번호 <span class="text-danger">*</span></label>
-      <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
-        <input type="text" id="version" name="version" class="form-control" style="max-width: 150px;" required value="{{ rec_minor }}" placeholder="예: 1.1">
-        <div style="display: flex; gap: 4px;">
-          <button type="button" class="btn btn-sm btn-secondary" onclick="setVersion('{{ rec_minor }}')">마이너 개정 (v{{ rec_minor }})</button>
-          <button type="button" class="btn btn-sm btn-secondary" onclick="setVersion('{{ rec_major }}')">메이저 개정 (v{{ rec_major }})</button>
-        </div>
-      </div>
-      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 마이너 개정(소폭 수정) 시 소수점 자리를 올리고, 메이저 개정(대폭 개정) 시 정수 자리를 올립니다.</p>
+      <label for="revision_no" class="form-label">개정번호 (REV) <span class="text-danger">*</span></label>
+      <input type="number" id="revision_no" name="revision_no" class="form-control" style="max-width:150px;" min="1" required value="{{ next_rev }}">
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 기본값은 현재 개정차수 +1입니다. 필요 시 직접 수정할 수 있습니다. (서식은 문서번호의 (REVn)이 함께 갱신됩니다)</p>
     </div>
 
     <div class="form-group">
@@ -60,8 +59,8 @@
 
     <div class="form-group">
       <label for="file" class="form-label">개정본 첨부파일 (PDF 형식) <span class="text-danger">*</span></label>
-      <input type="file" id="file" name="file" class="form-control" accept=".pdf" required>
-      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 기존에 등록된 이전 파일은 역사 이력으로 자동 보존됩니다.</p>
+      <input type="file" id="file" name="file" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx">
+      <p class="text-muted" style="font-size: var(--font-xs); margin-top: 4px;">* 미첨부 시 현행 문서의 파일이 개정본에 승계됩니다. 기존 문서 파일은 구버전으로 보존됩니다.</p>
     </div>
 
     <div class="form-actions" style="margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm);">

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% import 'msds/_ghs_svg.html' as ghs %}
+{% block title %}{{ 'MSDS 수정' if item else 'MSDS 등록' }}{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 › MSDS 등록부 › {{ '수정' if item else '등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ 'MSDS 정보 수정' if item else 'MSDS 신규 등록' }} <span>{{ next_number }}</span></div>
+  <a href="{{ url_for('msds.index') }}" class="btn btn-outline">← 등록부</a>
+</div>
+
+<div class="card" style="max-width:900px;">
+  <div class="card-header">🧪 화학물질 정보 입력</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('msds.edit', msds_id=item.id) if item else url_for('msds.new') }}">
+
+      <!-- ① 기본 정보 -->
+      <div style="font-size:0.82rem;font-weight:700;margin-bottom:12px;">① 기본 정보</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">등록번호</label>
+          <input type="text" class="form-control" value="{{ next_number }}" disabled style="font-family:monospace;font-weight:700;">
+          <p style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;">NV-MSDS-000 체계로 자동 부여됩니다.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">등록일자</label>
+          <input type="date" name="reg_date" class="form-control" value="{{ item.reg_date if item and item.reg_date else today }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">제품명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="product_name" class="form-control" required placeholder="예: 245 Lead-free Alloy Solder Wire" value="{{ item.product_name if item else '' }}">
+        </div>
+      </div>
+
+      <!-- ② 원본 MSDS 정보 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">② 원본(MSDS) 정보</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">원본 제·개정번호</label>
+          <input type="text" name="src_revision" class="form-control" placeholder="예: 3 (없으면 -)" value="{{ item.src_revision if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">원본 제·개정일자</label>
+          <input type="date" name="src_revision_date" class="form-control" value="{{ item.src_revision_date if item and item.src_revision_date else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">작성자 (제조사/공급사)</label>
+          <input type="text" name="manufacturer" class="form-control" placeholder="예: Kester Inc." value="{{ item.manufacturer if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">소관 부서</label>
+          <select name="department_id" class="form-control">
+            <option value="">선택하세요</option>
+            {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">TEL</label>
+          <input type="text" name="tel" class="form-control" placeholder="043-534-1144" value="{{ item.tel if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">FAX</label>
+          <input type="text" name="fax" class="form-control" placeholder="043-534-1146" value="{{ item.fax if item else '' }}">
+        </div>
+      </div>
+
+      <!-- ③ 사용·보관 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">③ 사용 · 보관 기준 <span style="font-weight:400;color:var(--text-muted);font-size:0.76rem;">(절차서 4.1 · 4.3)</span></div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">사용 공정 · 장소</label>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;padding:10px 12px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          {% set sel_areas = (item.use_areas or '').split(',') if item else [] %}
+          {% for a in use_areas %}
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.84rem;cursor:pointer;">
+            <input type="checkbox" name="use_areas" value="{{ a }}" style="width:16px;height:16px;" {% if a in sel_areas %}checked{% endif %}> {{ a }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">보관 장소</label>
+          <input type="text" name="storage_place" class="form-control" placeholder="예: 제조센터 인화성물질 보관함(분리보관)" value="{{ item.storage_place if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">필요 보호구</label>
+          <input type="text" name="protective_gear" class="form-control" placeholder="예: 방진마스크, 보안경, 내화학장갑" value="{{ item.protective_gear if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">GHS 유해성 분류</label>
+          <input type="text" name="ghs_class" class="form-control" placeholder="예: 인화성 액체(구분2), 심한 눈 손상성" value="{{ item.ghs_class if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;padding-top:26px;">
+            <input type="checkbox" name="needs_lev" style="width:18px;height:18px;" {% if item and item.needs_lev %}checked{% endif %}>
+            국소배기장치 상시 가동 필요
+          </label>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;padding-top:26px;">
+            <input type="checkbox" name="is_active" style="width:18px;height:18px;" {% if not item or item.is_active %}checked{% endif %}>
+            현재 사용 중 (미체크 시 사용중지)
+          </label>
+        </div>
+      </div>
+
+      <!-- ③-2 GHS 경고표지(소분용기 라벨) 항목 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">③-2 GHS 경고표지 항목 <span style="font-weight:400;color:var(--text-muted);font-size:0.76rem;">(소분용기 라벨 출력용 · 산안법 제115조)</span></div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">그림문자 (해당 항목 모두 선택)</label>
+        {% set sel_picto = (item.ghs_pictograms or '').split(',') if item else [] %}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          {% for code, info in pictograms.items() %}
+          <label style="display:flex;align-items:center;gap:7px;font-size:0.82rem;cursor:pointer;">
+            <input type="checkbox" name="ghs_pictograms" value="{{ code }}" style="width:16px;height:16px;" {% if code in sel_picto %}checked{% endif %}>
+            {{ ghs.picto(code, "30px") }}
+            <span>{{ info[0] }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">신호어</label>
+          <select name="signal_word" class="form-control" id="signalWord">
+            <option value="">없음 (비위험물)</option>
+            <option value="위험">위험 (Danger)</option>
+            <option value="경고">경고 (Warning)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">공급자 정보</label>
+          <input type="text" name="supplier_info" class="form-control" placeholder="미입력 시 제조사·TEL 자동 사용" value="{{ item.supplier_info if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">유해·위험 문구 (H)</label>
+          <textarea name="hazard_statements" class="form-control" rows="2" placeholder="예: H225 고인화성 액체 및 증기 / H319 눈에 심한 자극을 일으킴">{{ item.hazard_statements if item else '' }}</textarea>
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">예방조치 문구 (P)</label>
+          <textarea name="precaution_statements" class="form-control" rows="2" placeholder="예: P210 열·스파크·화염 금지 / P280 보호장갑·보안경 착용">{{ item.precaution_statements if item else '' }}</textarea>
+        </div>
+      </div>
+
+      <!-- ④ RBA/고객 제한물질 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">④ RBA · 고객 제한/금지물질 (RSL) <span style="font-weight:400;color:var(--text-muted);font-size:0.76rem;">(절차서 4.2)</span></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">저촉 여부</label>
+          <select name="rsl_status" class="form-control" id="rslStatus">
+            <option value="none">해당없음</option>
+            <option value="restricted">제한물질 (사용조건 준수)</option>
+            <option value="prohibited">금지물질 (사용금지·대체검토)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">근거 / 대체물질 검토</label>
+          <input type="text" name="rsl_note" class="form-control" placeholder="예: 고객사 RSL Rev.5 납 함량 제한" value="{{ item.rsl_note if item else '' }}">
+        </div>
+      </div>
+
+      <!-- ⑤ 첨부·비고 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">⑤ MSDS 파일 · 비고</div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">MSDS 파일 (PDF 등)</label>
+        {% if item and item.file_name %}<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">현재 파일: {{ item.file_name }} (새 파일 선택 시 교체)</p>{% endif %}
+        <input type="file" name="file" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg">
+      </div>
+      <div class="form-group">
+        <label class="form-label">비고</label>
+        <textarea name="note" class="form-control" rows="2" placeholder="특이사항을 기재하세요.">{{ item.note if item else '' }}</textarea>
+      </div>
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('msds.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ MSDS 등록' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if item %}
+<script>
+document.getElementById('rslStatus').value = {{ (item.rsl_status or 'none')|tojson }};
+document.getElementById('signalWord').value = {{ (item.signal_word or '')|tojson }};
+document.querySelector('select[name="department_id"]').value = {{ (item.department_id or '')|tojson }};
+</script>
+{% endif %}
+{% endblock %}

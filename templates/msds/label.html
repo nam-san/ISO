@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% import 'msds/_ghs_svg.html' as ghs %}
+{% block title %}{{ m.product_name }} 경고표지{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 › MSDS 등록부 › 경고표지 출력{% endblock %}
+
+{% block content %}
+<!-- ══════ 화면 전용 컨트롤 (인쇄 시 숨김) ══════ -->
+<div class="no-print">
+  <div class="page-header">
+    <div>
+      <div class="page-title">소분용기 GHS 경고표지 <span>{{ m.reg_number }}</span></div>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+        산업안전보건법 제115조 — 소분·이송용기에는 경고표지를 부착해야 합니다. 아래 미리보기를 확인하고 인쇄하세요.
+      </p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="window.print()" class="btn btn-primary">🖨️ 인쇄</button>
+      <a href="{{ url_for('msds.detail', msds_id=m.id) }}" class="btn btn-outline">← 상세</a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-body" style="padding:14px 20px;">
+      <form method="GET" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+        <div>
+          <label class="form-label">라벨 크기</label>
+          <select name="size" class="form-control" onchange="this.form.submit()">
+            {% for key, (lbl, w, h) in label_sizes.items() %}
+            <option value="{{ key }}" {% if size==key %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">출력 매수</label>
+          <input type="number" name="count" class="form-control" value="{{ count }}" min="1" max="40" style="width:110px;">
+        </div>
+        <button type="submit" class="btn btn-outline btn-sm">적용</button>
+        <div style="font-size:0.78rem;color:var(--text-muted);padding-bottom:8px;">
+          ※ 인쇄 대화상자에서 <strong>여백 없음</strong>, <strong>배경 그래픽 인쇄</strong>를 체크하세요.
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if not m.signal_word and not picto %}
+  <div class="info-box" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:0.85rem;">
+    ⚠️ <strong>경고표지 항목이 입력되지 않았습니다.</strong>
+    <a href="{{ url_for('msds.edit', msds_id=m.id) }}" style="color:#92400e;text-decoration:underline;font-weight:700;">MSDS 수정</a>에서
+    그림문자·신호어·유해위험문구·예방조치문구를 입력하면 완전한 경고표지가 출력됩니다.
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══════ 라벨 (인쇄 대상) ══════ -->
+<div class="label-sheet">
+  {% for i in range(count) %}
+  <div class="ghs-label" style="width:{{ width }}mm;height:{{ height }}mm;">
+    <!-- ① 명칭 -->
+    <div class="lb-name">{{ m.product_name }}</div>
+
+    <!-- ② 그림문자 (GHS 표준 픽토그램) -->
+    <div class="lb-picto">
+      {% if picto %}
+        {% set psize = '11mm' if size=='small' else ('15mm' if size=='medium' else '20mm') %}
+        {% for p in picto %}
+        <span class="lb-dia" title="{{ pictograms[p][0] }}">{{ ghs.picto(p, psize) }}</span>
+        {% endfor %}
+      {% else %}
+        <div class="lb-nopicto">그림문자 없음<br>(비위험물)</div>
+      {% endif %}
+    </div>
+
+    <!-- ③ 신호어 -->
+    {% if m.signal_word %}
+    <div class="lb-signal {% if m.signal_word == '위험' %}danger{% endif %}">{{ m.signal_word }}</div>
+    {% endif %}
+
+    <!-- ④⑤ 유해·위험 문구 / 예방조치 문구 (남은 공간 내에서 표시) -->
+    <div class="lb-body">
+      <div class="lb-block">
+        <div class="lb-h">유해·위험 문구</div>
+        <div class="lb-t">{{ m.hazard_statements or m.ghs_class or '-' }}</div>
+      </div>
+      <div class="lb-block">
+        <div class="lb-h">예방조치 문구</div>
+        <div class="lb-t">{{ m.precaution_statements or (('보호구 착용: ' ~ m.protective_gear) if m.protective_gear else '-') }}</div>
+      </div>
+    </div>
+
+    <!-- ⑥ 공급자 정보 + 소분 기입란 -->
+    <div class="lb-foot">
+      <div class="lb-sup">공급자: {{ supplier or '-' }}</div>
+      <div class="lb-fill">
+        <span>소분일자 ____________</span>
+        <span>담당 __________</span>
+      </div>
+      <div class="lb-reg">{{ m.reg_number }} · 누리보이스</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<style>
+/* ── 라벨 배치 ── */
+.label-sheet { display:flex; flex-wrap:wrap; gap:4mm; }
+.ghs-label {
+  border: 2.5px solid #b91c1c;
+  border-radius: 2mm;
+  padding: 2.5mm 3mm;
+  background: #fff;
+  color: #111;
+  display: flex; flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  page-break-inside: avoid;
+}
+.lb-name {
+  font-size: {{ '9pt' if size=='small' else ('11pt' if size=='medium' else '14pt') }};
+  font-weight: 800; text-align: center; line-height: 1.2;
+  border-bottom: 1.5px solid #111; padding-bottom: 1.5mm; margin-bottom: 1.5mm;
+  word-break: break-word;
+}
+.lb-picto {
+  display:flex; justify-content:center; align-items:center; flex-wrap:wrap;
+  gap: {{ '1mm' if size=='small' else '1.5mm' }};
+  margin-bottom:1.5mm;
+}
+.lb-dia { display:inline-flex; line-height:0; }      /* 이미지는 회전 없이 정확한 박스 차지 */
+.ghs-svg { display:block; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.lb-nopicto { font-size:7pt; color:#666; text-align:center; padding:2mm 0; }
+.lb-signal {
+  text-align:center; font-weight:900; letter-spacing:0.1em;
+  font-size: {{ '10pt' if size=='small' else ('13pt' if size=='medium' else '17pt') }};
+  color:#b45309; margin-bottom:1.5mm;
+}
+.lb-signal.danger { color:#b91c1c; }
+.lb-block { margin-bottom:1.2mm; min-height:0; overflow:hidden; }
+/* 문구가 길어도 라벨 밖으로 넘치지 않도록 — 남은 공간을 나눠 갖고 넘치면 말줄임 */
+.lb-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.lb-h {
+  font-size: {{ '5.5pt' if size=='small' else ('7pt' if size=='medium' else '8.5pt') }};
+  font-weight:800; color:#b91c1c; margin-bottom:0.4mm;
+}
+.lb-t {
+  font-size: {{ '5.5pt' if size=='small' else ('7pt' if size=='medium' else '9pt') }};
+  line-height:1.35; word-break:break-word;
+}
+.lb-foot { margin-top:auto; border-top:1px solid #999; padding-top:1mm; }
+.lb-sup { font-size: {{ '5pt' if size=='small' else ('6.5pt' if size=='medium' else '8pt') }}; color:#333; }
+.lb-fill {
+  display:flex; justify-content:space-between; gap:2mm; margin-top:0.8mm;
+  font-size: {{ '5pt' if size=='small' else ('6.5pt' if size=='medium' else '8pt') }}; color:#111;
+}
+.lb-reg { font-size: {{ '4.5pt' if size=='small' else ('6pt' if size=='medium' else '7pt') }}; color:#666; text-align:right; margin-top:0.5mm; }
+
+/* ── 인쇄 ── */
+@media print {
+  @page { size: A4; margin: 8mm; }
+  body { background:#fff !important; }
+  .no-print, .sidebar, .topbar, .breadcrumb, header, nav, footer { display:none !important; }
+  .main-content, .content, main, .container { margin:0 !important; padding:0 !important; width:100% !important; }
+  .label-sheet { gap:3mm; }
+  .ghs-label { box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+</style>
+{% endblock %}

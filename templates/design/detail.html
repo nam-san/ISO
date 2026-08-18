@@ -1,19 +1,27 @@
 {% extends "base.html" %}
-{% block title %}{{ dc.change_number }} 상세{% endblock %}
-{% block breadcrumb %}🔬 설계/개발 변경 › {{ dc.change_number }}{% endblock %}
+{% block title %}{{ dc.change_number }} 4M 변경{% endblock %}
+{% block breadcrumb %}🔄 변경 관리 › {{ dc.change_number }}{% endblock %}
 
 {% block content %}
+{% set st_cls = {'draft':'draft','review':'review','qa':'review','customer':'active','approved':'approved','implemented':'approved','rejected':'obsolete'} %}
+{% set can_edit = current_user.has_edit() and (current_user.is_admin() or dc.requester_id == current_user.id) %}
+
 <div class="page-header">
   <div>
-    <div class="page-title">{{ dc.change_number }} <span>{{ dc.change_title }}</span></div>
+    <div class="page-title">{{ dc.change_title }}
+      <span class="status-badge status-{{ st_cls.get(dc.status,'draft') }}" style="font-size:0.85rem;">{{ status_kr.get(dc.status, dc.status) }}</span>
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      {{ dc.change_number }} · {{ dc.product_name }}{% if dc.product_no %} ({{ dc.product_no }}){% endif %} · 작성 {{ dc.request_date or '-' }}
+    </p>
   </div>
   <div style="display:flex;gap:10px;">
-    {% if dc.status in ['draft','review'] and current_user.has_edit() and (current_user.is_admin() or dc.requester_id == current_user.id) %}
+    {% if can_edit and dc.status in ['draft','review'] %}
     <a href="{{ url_for('design.edit', dcid=dc.id) }}" class="btn btn-primary">✏️ 수정</a>
     {% endif %}
-    {% if current_user.is_admin() or (dc.requester_id == current_user.id and dc.status in ['draft','review']) %}
+    {% if current_user.is_admin() or (dc.requester_id == current_user.id and dc.status == 'draft') %}
     <form method="POST" action="{{ url_for('design.delete', dcid=dc.id) }}" style="display:inline;"
-          onsubmit="return confirm('설계변경 건을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+          onsubmit="return confirm('4M 변경 신고서를 삭제하시겠습니까?');">
       <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
     </form>
     {% endif %}
@@ -21,136 +29,433 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
-  <div>
-    <!-- 기본 정보 -->
-    <div class="card" style="margin-bottom:20px;">
-      <div class="card-header">📋 변경 요청 기본 정보</div>
-      <div class="card-body">
-        <table style="width:100%;border-collapse:collapse;">
-          {% macro row(label, value) %}
-          <tr>
-            <td style="padding:10px 0;width:130px;font-size:0.82rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
-            <td style="padding:10px 0;font-size:0.88rem;border-bottom:1px solid var(--border-light);">{{ value }}</td>
-          </tr>
-          {% endmacro %}
-          {{ row('변경번호', dc.change_number) }}
-          {{ row('제품명/모델', dc.product_name) }}
-          {{ row('변경유형', dc.change_type or '-') }}
-          {{ row('요청일', dc.request_date or '-') }}
-          {{ row('적용예정일', dc.apply_date or '-') }}
-          {{ row('승인일', dc.approved_date or '-') }}
-          {{ row('요청자', dc.requester.name if dc.requester else '-') }}
-          {{ row('승인자', dc.approver.name if dc.approver else '미승인') }}
-          {{ row('소관부서', dc.department.name if dc.department else '-') }}
-        </table>
+<!-- 진행 단계 -->
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-body" style="padding:16px 20px;">
+    {% set steps = [('draft','작성'),('review','부서검토'),('qa','품질검토'),('customer','고객승인'),('approved','승인완료'),('implemented','반영완료')] %}
+    {% set order = {'draft':0,'review':1,'qa':2,'customer':3,'approved':4,'implemented':5,'rejected':1} %}
+    {% set cur = order.get(dc.status, 0) %}
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      {% for key, label in steps %}
+      {% set idx = loop.index0 %}
+      {% if not (key == 'customer' and dc.customer_target == '비대상') %}
+      <div style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;font-size:0.82rem;font-weight:600;
+           background:{% if dc.status=='rejected' and idx>=1 %}#fee2e2{% elif idx < cur %}var(--iso-e-light){% elif idx == cur %}#dbeafe{% else %}var(--bg-base){% endif %};
+           color:{% if dc.status=='rejected' and idx>=1 %}#991b1b{% elif idx < cur %}var(--iso-e){% elif idx == cur %}#1d4ed8{% else %}var(--text-muted){% endif %};">
+        {% if idx < cur %}✅{% elif idx == cur %}⏳{% else %}⬜{% endif %} {{ label }}
       </div>
-    </div>
-
-    <!-- 변경 내용 -->
-    <div class="card" style="margin-bottom:20px;">
-      <div class="card-header">📝 변경 내용 상세</div>
-      <div class="card-body">
-        <div style="margin-bottom:16px;">
-          <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">변경 사유</div>
-          <div style="font-size:0.88rem;padding:12px;background:var(--bg-base);border-radius:var(--radius-sm);white-space:pre-line;">{{ dc.change_reason }}</div>
-        </div>
-        <div style="margin-bottom:16px;">
-          <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">변경 내용</div>
-          <div style="font-size:0.88rem;padding:12px;background:var(--bg-base);border-radius:var(--radius-sm);white-space:pre-line;">{{ dc.change_content }}</div>
-        </div>
-        {% if dc.before_spec or dc.after_spec %}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-          <div>
-            <div style="font-size:0.78rem;font-weight:600;color:#dc2626;margin-bottom:6px;">변경 전 사양</div>
-            <div style="font-size:0.85rem;padding:12px;background:#fff5f5;border:1px solid #fecaca;border-radius:var(--radius-sm);white-space:pre-line;min-height:60px;">{{ dc.before_spec or '-' }}</div>
-          </div>
-          <div>
-            <div style="font-size:0.78rem;font-weight:600;color:#16a34a;margin-bottom:6px;">변경 후 사양</div>
-            <div style="font-size:0.85rem;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius-sm);white-space:pre-line;min-height:60px;">{{ dc.after_spec or '-' }}</div>
-          </div>
-        </div>
-        {% endif %}
-        {% if dc.verification_method %}
-        <div style="margin-bottom:12px;">
-          <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">검증 방법</div>
-          <div style="font-size:0.88rem;padding:12px;background:var(--bg-base);border-radius:var(--radius-sm);white-space:pre-line;">{{ dc.verification_method }}</div>
-        </div>
-        {% endif %}
-        {% if dc.risk_assessment %}
-        <div>
-          <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">리스크 평가</div>
-          <div style="font-size:0.88rem;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);white-space:pre-line;">{{ dc.risk_assessment }}</div>
-        </div>
-        {% endif %}
-      </div>
+      {% if not loop.last %}<span style="color:var(--text-muted);">›</span>{% endif %}
+      {% endif %}
+      {% endfor %}
+      {% if dc.status == 'rejected' %}<span class="status-badge status-obsolete" style="margin-left:8px;">반려됨</span>{% endif %}
     </div>
   </div>
+</div>
 
+{% if criteria %}
+<div class="info-box" style="background:{% if criteria[5] %}#fef9c3{% else %}#eff6ff{% endif %};border:1px solid {% if criteria[5] %}#eab308{% else %}#bfdbfe{% endif %};color:{% if criteria[5] %}#854d0e{% else %}#1e40af{% endif %};padding:12px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:0.84rem;">
+  📌 <strong>[{{ criteria[1] }}] {{ criteria[2] }}</strong> — 승인경로:
+  {% if criteria[3] %}자체승인{% endif %}{% if criteria[4] %}{% if criteria[3] %} → {% endif %}품질승인{% endif %}{% if criteria[5] %} → <strong>고객통보/승인</strong>{% endif %}
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start;">
   <div>
-    <!-- 상태 및 결재 -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-header">📊 처리 상태</div>
-      <div class="card-body" style="text-align:center;">
-        {% set sm = {'draft':'초안 작성중','review':'검토/승인 대기','approved':'승인 완료','implemented':'반영 완료','rejected':'기각됨'} %}
-        {% set sc = {'draft':'draft','review':'review','approved':'active','implemented':'active','rejected':'obsolete'} %}
-        <span class="status-badge status-{{ sc.get(dc.status,'draft') }}" style="font-size:0.92rem;padding:8px 20px;">
-          {{ sm.get(dc.status, dc.status) }}
-        </span>
+    <!-- 변경 사항 -->
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-header">🔄 변경 사항</div>
+      <div class="card-body">
+        <div style="margin-bottom:12px;">
+          <span style="font-size:0.78rem;color:var(--text-secondary);font-weight:600;">변경 구분:</span>
+          {% for label, on in [('사람(Man)',dc.m4_man),('기계(Machine)',dc.m4_machine),('재료(Material)',dc.m4_material),('방법(Method)',dc.m4_method)] %}
+            {% if on %}<span class="status-badge status-active" style="margin-left:4px;">{{ label }}</span>{% endif %}
+          {% endfor %}
+          {% if dc.m4_etc %}<span class="status-badge status-draft" style="margin-left:4px;">기타: {{ dc.m4_etc }}</span>{% endif %}
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;width:90px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">변경 사유</td>
+              <td style="padding:8px 0;font-size:0.87rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ dc.change_reason or '-' }}</td></tr>
+          <tr><td style="padding:8px 0;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">변경 내용</td>
+              <td style="padding:8px 0;font-size:0.87rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ dc.change_content or '-' }}</td></tr>
+        </table>
 
-        <!-- 단계 시각화 -->
-        <div style="margin-top:20px;display:flex;flex-direction:column;gap:8px;">
-          {% set steps = [('초안', 'draft'), ('검토요청', 'review'), ('승인', 'approved'), ('반영완료', 'implemented')] %}
-          {% set order = ['draft','review','approved','implemented'] %}
-          {% set cur_idx = order.index(dc.status) if dc.status in order else 0 %}
-          {% for label, key in steps %}
-          {% set s_idx = order.index(key) %}
-          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;
-               background:{% if s_idx <= cur_idx and dc.status != 'rejected' %}var(--iso-e-light){% else %}var(--bg-base){% endif %};">
-            <span>{% if s_idx < cur_idx and dc.status != 'rejected' %}✅{% elif s_idx == cur_idx and dc.status != 'rejected' %}⏳{% else %}⬜{% endif %}</span>
-            <span style="font-size:0.82rem;font-weight:600;
-                  color:{% if s_idx <= cur_idx and dc.status != 'rejected' %}var(--iso-e){% else %}var(--text-muted){% endif %};">{{ label }}</span>
+        <!-- 변경 전/후 (사진 포함) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+          {% for slot, title, color, spec in [('before','변 경 전','#64748b',dc.before_spec),('after','변 경 후','var(--iso-q)',dc.after_spec)] %}
+          <div style="border:1px solid {% if slot=='after' %}var(--iso-q){% else %}var(--border){% endif %};border-radius:var(--radius-sm);overflow:hidden;">
+            <div style="background:{% if slot=='after' %}var(--iso-q-light){% else %}#f1f5f9{% endif %};padding:8px 12px;font-size:0.82rem;font-weight:700;color:{{ color }};">{{ title }}</div>
+            <div style="padding:12px;">
+              <div style="font-size:0.86rem;white-space:pre-line;min-height:40px;">{{ spec or '-' }}</div>
+              {% set slot_atts = atts.get(slot, []) %}
+              {% if slot_atts %}
+              <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
+                {% for a in slot_atts %}
+                {% set aurl = url_for('static', filename='uploads/' ~ a.file_path.split('\\')[-1].split('/')[-1]) %}
+                <div style="position:relative;width:104px;">
+                  {% if a.is_image %}
+                  <img src="{{ aurl }}" class="zoomable" title="{{ a.file_name }}"
+                       style="width:104px;height:104px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;">
+                  {% else %}
+                  <a href="{{ aurl }}" download style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:104px;height:104px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-secondary);font-size:0.68rem;text-align:center;padding:6px;">
+                    <span style="font-size:1.5rem;">📄</span><span style="margin-top:4px;word-break:break-all;">{{ a.file_name[:16] }}</span></a>
+                  {% endif %}
+                  {% if can_edit and dc.status in ['draft','review'] %}
+                  <form method="POST" action="{{ url_for('design.delete_attachment', att_id=a.id) }}" onsubmit="return confirm('첨부를 삭제할까요?');" style="position:absolute;top:3px;right:3px;">
+                    <button type="submit" style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:0.75rem;line-height:1;">×</button>
+                  </form>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
           </div>
           {% endfor %}
         </div>
       </div>
     </div>
 
-    <!-- 결재 액션 -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-header">⚙️ 처리 액션</div>
+    <!-- 관계부서 검토 -->
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-header">🤝 관계부서 검토 <span style="font-weight:400;color:var(--text-muted);font-size:0.78rem;">— 절차서 5.2</span></div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th style="width:80px;">부서</th><th style="width:90px;">담당자</th><th>검토의견</th><th style="width:150px;">서명</th></tr></thead>
+          <tbody>
+          {% for rv in reviews %}
+          <tr>
+            <td style="font-weight:700;">{{ rv.dept_label }}</td>
+            <td style="font-size:0.82rem;">{{ rv.reviewer_name or '-' }}</td>
+            <td style="font-size:0.84rem;white-space:pre-line;">
+              {{ rv.opinion or '' }}
+              {% if not rv.opinion %}
+                <span style="color:var(--text-muted);">미검토</span>
+                {% if checkpoints.get(rv.dept_label) %}
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">
+                  {% for cp in checkpoints[rv.dept_label] %}· {{ cp }}<br>{% endfor %}
+                </div>
+                {% endif %}
+              {% endif %}
+            </td>
+            <td>
+              {% if rv.signed_at %}
+                <span class="status-badge status-approved">✅ {{ rv.signed_by.name if rv.signed_by else '' }}</span>
+                <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">{{ rv.signed_at.strftime('%Y-%m-%d') }}</div>
+              {% elif dc.status == 'review' and current_user.has_review() %}
+                <button class="btn btn-outline btn-sm" onclick="openReview({{ rv.id }}, '{{ rv.dept_label }}')">✍️ 검토</button>
+              {% else %}<span style="color:var(--text-muted);font-size:0.78rem;">대기</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="empty-cell">지정된 관계부서가 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 품질관리팀 검토 및 승인 -->
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-header">🔍 품질관리팀 검토 및 승인 <span style="font-weight:400;color:var(--text-muted);font-size:0.78rem;">— 절차서 5.3</span></div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('design.approve', dcid=dc.id) }}" style="display:flex;flex-direction:column;gap:8px;">
-          {% if dc.status == 'draft' and (dc.requester_id == current_user.id or current_user.is_admin()) %}
-          <button type="submit" name="action" value="submit" class="btn btn-primary btn-sm">📤 검토 요청</button>
-          {% endif %}
-          {% if dc.status == 'review' and current_user.is_manager() %}
-          <button type="submit" name="action" value="approve" class="btn btn-success btn-sm"
-                  onclick="return confirm('승인하시겠습니까?')">✅ 승인</button>
-          <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm"
-                  onclick="return confirm('기각하시겠습니까?')">❌ 기각</button>
-          {% endif %}
-          {% if dc.status == 'approved' and current_user.is_manager() %}
-          <button type="submit" name="action" value="implement" class="btn btn-outline btn-sm"
-                  style="border-color:var(--iso-q);color:var(--iso-q);"
-                  onclick="return confirm('반영완료 처리하시겠습니까?')">🏁 반영완료 처리</button>
-          {% endif %}
+        {% if dc.status in ['review','qa'] and current_user.has_approve() %}
+        <form method="POST" action="{{ url_for('design.qa_review', dcid=dc.id) }}">
+          <div class="form-grid" style="margin-bottom:12px;">
+            <div class="form-group">
+              <label class="form-label">접수일자</label>
+              <input type="date" name="qa_receipt_date" class="form-control" value="{{ dc.qa_receipt_date or today }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">승인평가</label>
+              <select name="qa_eval_needed" class="form-control">
+                <option value="필요" {% if dc.qa_eval_needed=='필요' %}selected{% endif %}>필요</option>
+                <option value="불필요" {% if dc.qa_eval_needed=='불필요' %}selected{% endif %}>불필요</option>
+              </select>
+            </div>
+            <div class="form-group form-full">
+              <label class="form-label">불필요 사유</label>
+              <input type="text" name="qa_eval_reason" class="form-control" value="{{ dc.qa_eval_reason or '' }}">
+            </div>
+          </div>
+
+          <label class="form-label">제품 평가 (상세내용 첨부)</label>
+          <div style="overflow-x:auto;margin-bottom:14px;">
+            <table class="data-table">
+              <thead><tr><th>검사 항목</th><th style="width:150px;">필요 여부</th><th style="width:140px;">평가 완료일</th><th style="width:150px;">평가 결과</th></tr></thead>
+              <tbody>
+              {% for name in qa_items %}
+              {% set ev = eval_items.get(name, {}) %}
+              <tr>
+                <td style="font-size:0.84rem;">{{ name }}</td>
+                <td>
+                  <select name="ev_need_{{ loop.index0 }}" class="form-control" style="padding:5px;font-size:0.8rem;">
+                    <option value="">-</option>
+                    <option value="필요" {% if ev.get('need')=='필요' %}selected{% endif %}>필요</option>
+                    <option value="불필요" {% if ev.get('need')=='불필요' %}selected{% endif %}>불필요</option>
+                  </select>
+                </td>
+                <td><input type="date" name="ev_date_{{ loop.index0 }}" class="form-control" style="padding:5px;font-size:0.8rem;" value="{{ ev.get('date','') }}"></td>
+                <td>
+                  <select name="ev_result_{{ loop.index0 }}" class="form-control" style="padding:5px;font-size:0.8rem;">
+                    <option value="">-</option>
+                    <option value="합격" {% if ev.get('result')=='합격' %}selected{% endif %}>합격</option>
+                    <option value="불합격" {% if ev.get('result')=='불합격' %}selected{% endif %}>불합격</option>
+                  </select>
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">검토일자</label>
+              <input type="date" name="qa_review_date" class="form-control" value="{{ dc.qa_review_date or today }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">승인 여부 <span style="color:var(--danger)">*</span></label>
+              <select name="qa_result" class="form-control" required>
+                <option value="합격">합격</option>
+                <option value="불합격">불합격</option>
+              </select>
+            </div>
+            <div class="form-group form-full">
+              <label class="form-label">불합격 사유</label>
+              <input type="text" name="qa_reject_reason" class="form-control" value="{{ dc.qa_reject_reason or '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">고객 승인 <span style="color:var(--danger)">*</span></label>
+              <select name="customer_target" class="form-control" required>
+                <option value="비대상" {% if dc.customer_target=='비대상' %}selected{% endif %}>비대상 (사내 종결)</option>
+                <option value="대상" {% if dc.customer_target=='대상' %}selected{% endif %}>대상 (고객 승인 필요)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">고객사명</label>
+              <input type="text" name="customer_name" class="form-control" value="{{ dc.customer_name or '' }}">
+            </div>
+            <div class="form-group form-full">
+              <label class="form-label">비대상 사유</label>
+              <input type="text" name="customer_reason" class="form-control" value="{{ dc.customer_reason or '' }}">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+            <button type="submit" class="btn btn-primary">💾 품질검토 결과 저장</button>
+          </div>
         </form>
-        {% if dc.status in ['implemented','rejected'] %}
-        <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:8px;">처리가 완료된 요청입니다.</div>
+        {% elif dc.qa_result %}
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(l,v) %}
+          <tr><td style="padding:7px 0;width:110px;font-size:0.79rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ l }}</td>
+              <td style="padding:7px 0;font-size:0.85rem;border-bottom:1px solid var(--border-light);">{{ v }}</td></tr>
+          {% endmacro %}
+          {{ row('접수일자', (dc.qa_receipt_date or '-')|string ~ ' / ' ~ (dc.qa_receiver.name if dc.qa_receiver else '-')) }}
+          {{ row('승인평가', (dc.qa_eval_needed or '-') ~ ((' — ' ~ dc.qa_eval_reason) if dc.qa_eval_reason else '')) }}
+          {{ row('검토일자', (dc.qa_review_date or '-')|string ~ ' / ' ~ (dc.qa_reviewer.name if dc.qa_reviewer else '-')) }}
+          <tr><td style="padding:7px 0;font-size:0.79rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">승인 여부</td>
+              <td style="padding:7px 0;border-bottom:1px solid var(--border-light);">
+                <span class="status-badge {% if dc.qa_result=='합격' %}status-approved{% else %}status-obsolete{% endif %}">{{ dc.qa_result }}</span>
+                {% if dc.qa_reject_reason %}<span style="font-size:0.8rem;color:var(--text-muted);margin-left:6px;">{{ dc.qa_reject_reason }}</span>{% endif %}
+              </td></tr>
+        </table>
+        {% if eval_items %}
+        <div style="margin-top:12px;overflow-x:auto;">
+          <table class="data-table">
+            <thead><tr><th>검사 항목</th><th>필요</th><th>완료일</th><th>결과</th></tr></thead>
+            <tbody>
+            {% for name, ev in eval_items.items() %}
+              {% if ev.get('need') or ev.get('result') %}
+              <tr><td style="font-size:0.82rem;">{{ name }}</td><td>{{ ev.get('need') or '-' }}</td><td class="date-cell">{{ ev.get('date') or '-' }}</td>
+                  <td>{% if ev.get('result')=='합격' %}<span class="status-badge status-approved">합격</span>{% elif ev.get('result')=='불합격' %}<span class="status-badge status-obsolete">불합격</span>{% else %}-{% endif %}</td></tr>
+              {% endif %}
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        {% else %}
+        <div style="font-size:0.84rem;color:var(--text-muted);">관계부서 검토 완료 후 품질관리팀이 검토·승인합니다.</div>
         {% endif %}
       </div>
     </div>
 
-    {% if file_url %}
+    <!-- 고객사 승인 -->
+    {% if dc.customer_target == '대상' %}
     <div class="card">
-      <div class="card-header">📎 첨부파일</div>
+      <div class="card-header">🏢 고객사 승인 <span style="font-weight:400;color:var(--text-muted);font-size:0.78rem;">— 절차서 5.3.3</span></div>
       <div class="card-body">
-        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">{{ dc.file_name }}</p>
-        <a href="{{ file_url }}" class="btn btn-outline btn-sm" style="width:100%;text-align:center;display:block;" download>⬇️ 파일 다운로드</a>
+        {% if dc.status == 'customer' and current_user.has_approve() %}
+        <form method="POST" action="{{ url_for('design.customer_approve', dcid=dc.id) }}">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">고객사명</label>
+              <input type="text" name="customer_name" class="form-control" value="{{ dc.customer_name or '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">고객사 승인일</label>
+              <input type="date" name="customer_approve_date" class="form-control" value="{{ today }}">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+            <button type="submit" class="btn btn-primary">✅ 고객 승인 등록</button>
+          </div>
+        </form>
+        {% else %}
+        <table style="width:100%;">
+          <tr><td style="padding:7px 0;width:110px;font-size:0.79rem;font-weight:600;color:var(--text-secondary);">고객사</td><td style="font-size:0.85rem;">{{ dc.customer_name or '-' }}</td></tr>
+          <tr><td style="padding:7px 0;font-size:0.79rem;font-weight:600;color:var(--text-secondary);">승인일</td><td style="font-size:0.85rem;">{{ dc.customer_approve_date or '승인 대기' }}</td></tr>
+        </table>
+        {% endif %}
       </div>
     </div>
     {% endif %}
   </div>
+
+  <!-- ══════ 우측 ══════ -->
+  <div>
+    <!-- 액션 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">⚡ 진행</div>
+      <div class="card-body">
+        {% if dc.status == 'draft' %}
+          {% if current_user.is_admin() or dc.requester_id == current_user.id %}
+          <form method="POST" action="{{ url_for('design.submit', dcid=dc.id) }}">
+            <button type="submit" class="btn btn-primary" style="width:100%;">📤 관계부서 검토 요청</button>
+          </form>
+          <p style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">팀장 승인 후 관계부서에 신고서를 전달합니다. (5.2.1)</p>
+          {% else %}<p style="font-size:0.82rem;color:var(--text-muted);">작성자가 검토를 요청할 수 있습니다.</p>{% endif %}
+        {% elif dc.status == 'review' %}
+          {% set done = reviews|selectattr('signed_at')|list|length %}
+          <div style="font-size:0.85rem;margin-bottom:8px;">부서 검토 <strong>{{ done }}/{{ reviews|length }}</strong> 완료</div>
+          <div style="height:8px;background:var(--bg-base);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;background:var(--iso-e);width:{{ (done / (reviews|length) * 100)|round if reviews|length else 0 }}%;"></div>
+          </div>
+          <p style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">전 부서 검토 후 품질관리팀이 승인합니다.</p>
+        {% elif dc.status == 'approved' %}
+          {% if current_user.has_approve() %}
+          <form method="POST" action="{{ url_for('design.implement', dcid=dc.id) }}">
+            <label class="form-label">배포처</label>
+            <input type="text" name="distribution" class="form-control" placeholder="예: 연구소, 구매팀, 품질관리팀" value="{{ dc.distribution or '' }}">
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:10px;">✅ 반영 완료 처리</button>
+          </form>
+          {% else %}<span class="status-badge status-approved">승인완료</span>{% endif %}
+        {% elif dc.status == 'implemented' %}
+          <span class="status-badge status-approved" style="font-size:0.9rem;">반영 완료</span>
+          {% if dc.distribution %}<p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">배포처: {{ dc.distribution }}</p>{% endif %}
+        {% elif dc.status == 'rejected' %}
+          <span class="status-badge status-obsolete" style="font-size:0.9rem;">반려</span>
+          {% if dc.qa_reject_reason %}<p style="font-size:0.8rem;color:#b91c1c;margin-top:8px;">{{ dc.qa_reject_reason }}</p>{% endif %}
+        {% else %}
+          <p style="font-size:0.82rem;color:var(--text-muted);">고객사 승인 진행 중입니다.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 기본정보 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📋 신청 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro r2(l,v) %}
+          <tr><td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ l }}</td>
+              <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);word-break:break-word;">{{ v }}</td></tr>
+          {% endmacro %}
+          {{ r2('신고번호', dc.change_number) }}
+          {{ r2('제품명', dc.product_name) }}
+          {{ r2('제품번호', dc.product_no or '-') }}
+          {{ r2('신청부서', dc.department.name if dc.department else '-') }}
+          {{ r2('작성자', dc.requester.name if dc.requester else '-') }}
+          {{ r2('작성일자', dc.request_date or '-') }}
+          {{ r2('Sample 제출', dc.sample_date or '-') }}
+          {{ r2('재고수량', dc.stock_qty or '-') }}
+          {{ r2('양산적용일', dc.apply_date or '-') }}
+          {% if dc.schedule_note %}{{ r2('기타', dc.schedule_note) }}{% endif %}
+        </table>
+      </div>
+    </div>
+
+    <!-- 관련 서류 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📎 관련 서류</div>
+      <div class="card-body">
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">표준문서 제/개정</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+          {% for key, label in doc_slots %}
+          {% set slot_atts = atts.get(key, []) %}
+          <tr>
+            <td style="padding:5px 0;width:92px;font-size:0.78rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+            <td style="padding:5px 0;font-size:0.76rem;border-bottom:1px solid var(--border-light);">
+              {% if slot_atts %}
+                {% for a in slot_atts %}
+                {% set aurl = url_for('static', filename='uploads/' ~ a.file_path.split('\\')[-1].split('/')[-1]) %}
+                <a href="{{ aurl }}" download style="color:var(--accent);display:block;">📄 {{ a.file_name[:22] }}</a>
+                {% endfor %}
+              {% else %}<span style="color:var(--text-muted);">해당없음</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">시험 결과</div>
+        <table style="width:100%;border-collapse:collapse;">
+          {% for key, label in test_slots %}
+          {% set slot_atts = atts.get(key, []) %}
+          <tr>
+            <td style="padding:5px 0;width:92px;font-size:0.78rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+            <td style="padding:5px 0;font-size:0.76rem;border-bottom:1px solid var(--border-light);">
+              {% if slot_atts %}
+                {% for a in slot_atts %}
+                {% set aurl = url_for('static', filename='uploads/' ~ a.file_path.split('\\')[-1].split('/')[-1]) %}
+                <a href="{{ aurl }}" download style="color:var(--accent);display:block;">📄 {{ a.file_name[:22] }}</a>
+                {% endfor %}
+              {% else %}<span style="color:var(--text-muted);">해당없음</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% set etc_atts = atts.get('etc', []) %}
+        {% if etc_atts %}
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+          {% for a in etc_atts %}
+          {% set aurl = url_for('static', filename='uploads/' ~ a.file_path.split('\\')[-1].split('/')[-1]) %}
+          <a href="{{ aurl }}" download style="display:block;font-size:0.78rem;color:var(--accent);margin-bottom:4px;">📄 {{ a.file_name }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- 부서 검토 모달 -->
+<div id="reviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div class="card" style="width:520px;max-width:92vw;">
+    <div class="card-header" id="rvTitle">검토 의견</div>
+    <div class="card-body">
+      <form method="POST" id="rvForm">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">담당자</label>
+          <input type="text" name="reviewer_name" class="form-control" value="{{ current_user.name }}">
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">검토 의견 <span style="color:var(--danger)">*</span></label>
+          <textarea name="opinion" class="form-control" rows="5" required placeholder="변경 사유·검증기간·재고수량·적용기일 등 업무 및 품질에 미치는 영향을 검토하여 기재하세요."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" class="btn btn-outline" onclick="closeReview()">취소</button>
+          <button type="submit" class="btn btn-primary">✍️ 검토 완료 (전자서명)</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openReview(id, dept) {
+  document.getElementById('rvTitle').textContent = dept + ' 부서 검토 의견';
+  document.getElementById('rvForm').action = '/design/{{ dc.id }}/review/' + id;
+  document.getElementById('reviewModal').style.display = 'flex';
+}
+function closeReview() { document.getElementById('reviewModal').style.display = 'none'; }
+</script>
 {% endblock %}

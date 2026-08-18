@@ -328,7 +328,7 @@ img.zoomable:hover { transform: scale(1.03); }
 /* 사이드바 내비게이션 */
 .sidebar-nav {
   flex: 1;
-  padding: 16px 12px;
+  padding: 10px 12px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.1) transparent;
@@ -342,22 +342,22 @@ img.zoomable:hover { transform: scale(1.03); }
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(255,255,255,0.35);
-  padding: 12px 8px 6px;
-  margin-top: 4px;
+  padding: 9px 8px 3px;
+  margin-top: 2px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 6px 12px;
   border-radius: var(--radius-sm);
   color: rgba(255,255,255,0.65);
   font-size: 0.88rem;
   font-weight: 500;
   transition: all var(--transition);
   position: relative;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 .nav-item:hover {
   background: rgba(255,255,255,0.08);
@@ -387,7 +387,7 @@ img.zoomable:hover { transform: scale(1.03); }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 6px 12px;
   border-radius: var(--radius-sm);
   color: rgba(255,255,255,0.65);
   font-size: 0.88rem;
@@ -418,13 +418,13 @@ img.zoomable:hover { transform: scale(1.03); }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 5px 10px;
   border-radius: var(--radius-sm);
   color: rgba(255,255,255,0.55);
   font-size: 0.82rem;
   font-weight: 400;
   transition: all var(--transition);
-  margin-bottom: 1px;
+  margin-bottom: 0;
 }
 .nav-sub-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.9); transform: translateX(2px); }
 .nav-sub-item.active { background: rgba(14,165,233,0.15); color: var(--accent-light); font-weight: 600; }
@@ -881,6 +881,37 @@ img.zoomable:hover { transform: scale(1.03); }
 .ip-cell { color: var(--text-muted); font-size: 0.72rem; font-family: monospace; }
 .truncate { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty-cell { text-align: center; color: var(--text-muted); padding: 32px; }
+
+/* ── 구문서(폐지본) 워터마크 — 사용·배포 금지 표시 ── */
+.obsolete-watermark {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;            /* 문서 스크롤·조작은 그대로 가능 */
+  overflow: hidden; z-index: 5;
+}
+.obsolete-watermark-text {
+  transform: rotate(-24deg);
+  font-size: clamp(2.6rem, 8vw, 6rem);
+  font-weight: 900; letter-spacing: 0.06em; text-align: center; line-height: 1.05;
+  color: rgba(220, 38, 38, 0.16);
+  border: 0.14em solid rgba(220, 38, 38, 0.16);
+  border-radius: 14px; padding: 0.16em 0.34em;
+  text-shadow: 0 2px 10px rgba(255,255,255,0.5);
+  user-select: none;
+}
+.obsolete-watermark-text span {
+  display: block; font-size: 0.32em; letter-spacing: 0.22em; margin-top: 0.35em;
+}
+.obsolete-ribbon {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 6;
+  background: rgba(185, 28, 28, 0.94); color: #fff;
+  font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em;
+  text-align: center; padding: 7px 12px;
+  pointer-events: none;
+}
+/* 구문서 목록 행 — 흐리게 + 취소선 느낌으로 구분 */
+tr.doc-obsolete td { background: #fff5f5; color: var(--text-muted); }
+tr.doc-obsolete td:first-child { text-decoration: line-through; }
 
 /* ── 전 메뉴 테이블 통일: 심사(data-table) 스타일로 수렴 ── */
 /* 레거시 어휘(.table-container/.badge/.card-title 등)를 심사 화면과 동일하게 구현 */

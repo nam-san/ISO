@@ -1,114 +1,332 @@
 {% extends "base.html" %}
-{% block title %}{{ '설계변경 수정' if item else '설계변경 요청 등록' }}{% endblock %}
-{% block breadcrumb %}🔬 설계/개발 변경 › {{ '변경 수정' if item else '변경 요청 등록' }}{% endblock %}
+{% block title %}{{ '4M 변경 신고서 수정' if item else '4M 변경 신고서 작성' }}{% endblock %}
+{% block breadcrumb %}🔄 변경 관리 › {{ '수정' if item else '신규 등록' }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <div class="page-title">설계/개발 변경 {{ '수정' if item else '요청 등록' }} <span>Design Change Request</span></div>
-  <a href="{{ url_for('design.index') }}" class="btn btn-outline">← 목록으로</a>
+  <div>
+    <div class="page-title">4M 변경 신고서 (사내용) <span>{{ item.change_number if item else 'P-038-1' }}</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      NV-P-038 4M 변경 관리 절차서에 따라 인력(Man)·설비(Machine)·자재(Material)·공법(Method) 변경사항을 신고합니다.
+    </p>
+  </div>
+  <a href="{{ url_for('design.index') }}" class="btn btn-outline">← 목록</a>
 </div>
 
-<div class="card">
-  <div class="card-header">🔬 변경 요청 정보 입력 {% if not item %}(변경번호는 자동 채번됩니다){% endif %}</div>
-  <div class="card-body">
-    <form method="POST" enctype="multipart/form-data"
-          action="{{ url_for('design.edit', dcid=item.id) if item else url_for('design.new') }}">
+<form method="POST" enctype="multipart/form-data"
+      action="{{ url_for('design.edit', dcid=item.id) if item else url_for('design.new') }}">
+
+  <!-- ① 신청 정보 -->
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">① 신청 정보</div>
+    <div class="card-body">
       <div class="form-grid">
         <div class="form-group">
-          <label class="form-label">제품명 / 모델 <span style="color:var(--danger)">*</span></label>
-          <input type="text" name="product_name" class="form-control" required
-                 placeholder="예: IP교환기 NX-500, AMI MIU v2.1" value="{{ item.product_name if item else '' }}">
+          <label class="form-label">작성일자 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="request_date" class="form-control" required
+                 value="{{ item.request_date if item and item.request_date else today }}">
         </div>
         <div class="form-group">
-          <label class="form-label">변경 유형 <span style="color:var(--danger)">*</span></label>
-          <select name="change_type" class="form-control" required>
+          <label class="form-label">신청 부서 <span style="color:var(--danger)">*</span></label>
+          <select name="department_id" class="form-control" required>
             <option value="">선택하세요</option>
-            <option value="설계변경">설계변경</option>
-            <option value="공정변경">공정변경</option>
-            <option value="자재변경">자재변경 (BOM 변경)</option>
-            <option value="소프트웨어변경">소프트웨어변경 (F/W, S/W)</option>
-            <option value="규격변경">규격변경</option>
+            {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
           </select>
         </div>
-        <div class="form-group form-full">
-          <label class="form-label">변경 제목 <span style="color:var(--danger)">*</span></label>
-          <input type="text" name="change_title" class="form-control" required
-                 placeholder="예: 메인보드 CPU 부품 단종으로 인한 대체 부품 적용" value="{{ item.change_title if item else '' }}">
-        </div>
-        <div class="form-group form-full">
-          <label class="form-label">변경 사유 <span style="color:var(--danger)">*</span></label>
-          <textarea name="change_reason" class="form-control" rows="3" required
-                    placeholder="변경이 필요한 이유를 구체적으로 기재하세요.">{{ item.change_reason if item else '' }}</textarea>
-        </div>
-        <div class="form-group form-full">
-          <label class="form-label">변경 내용 <span style="color:var(--danger)">*</span></label>
-          <textarea name="change_content" class="form-control" rows="4" required
-                    placeholder="변경되는 내용을 구체적으로 기재하세요.">{{ item.change_content if item else '' }}</textarea>
+        <div class="form-group">
+          <label class="form-label">제품명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="product_name" class="form-control" required placeholder="예: IP460GPB"
+                 value="{{ item.product_name if item else '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label">변경 전 사양</label>
-          <textarea name="before_spec" class="form-control" rows="3"
-                    placeholder="변경 전 규격/사양/부품번호 등">{{ item.before_spec if item else '' }}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">변경 후 사양</label>
-          <textarea name="after_spec" class="form-control" rows="3"
-                    placeholder="변경 후 규격/사양/부품번호 등">{{ item.after_spec if item else '' }}</textarea>
-        </div>
-        <div class="form-group form-full">
-          <label class="form-label">검증 방법</label>
-          <textarea name="verification_method" class="form-control" rows="3"
-                    placeholder="변경 적용 후 검증 방법을 기재하세요.">{{ item.verification_method if item else '' }}</textarea>
-        </div>
-        <div class="form-group form-full">
-          <label class="form-label">리스크 평가</label>
-          <textarea name="risk_assessment" class="form-control" rows="3"
-                    placeholder="변경으로 인한 잠재적 리스크와 대응 방안을 기재하세요.">{{ item.risk_assessment if item else '' }}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">변경 요청일 <span style="color:var(--danger)">*</span></label>
-          <input type="date" name="request_date" class="form-control" required value="{{ item.request_date.strftime('%Y-%m-%d') if item and item.request_date else today.strftime('%Y-%m-%d') }}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">적용 예정일</label>
-          <input type="date" name="apply_date" class="form-control" value="{{ item.apply_date.strftime('%Y-%m-%d') if item and item.apply_date else '' }}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">소관 부서</label>
-          <select name="department_id" class="form-control">
-            <option value="">선택하세요</option>
-            {% for dept in departments %}
-            <option value="{{ dept.id }}">{{ dept.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group form-full">
-          <label class="form-label">첨부파일 (변경도면, 시험성적서, ECO 등)</label>
-          {% if item and item.file_name %}<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">현재 파일: {{ item.file_name }} (새 파일 선택 시 교체)</p>{% endif %}
-          <input type="file" name="file" class="form-control"
-                 accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg">
+          <label class="form-label">제품번호</label>
+          <input type="text" name="product_no" class="form-control" placeholder="예: NV-IP460-001"
+                 value="{{ item.product_no if item else '' }}">
         </div>
       </div>
-
-      {% if not item %}
-      <div class="info-box" style="background:var(--iso-q-light);border:1px solid var(--iso-q);border-radius:var(--radius-sm);padding:14px 18px;margin:20px 0;font-size:0.82rem;color:var(--iso-q);">
-        💡 <strong>ISO 9001 8.3.6 설계·개발 변경 관리:</strong> 등록 후 검토 요청 → 팀장/관리자 승인 → 반영완료 순으로 처리됩니다.
-      </div>
-      {% endif %}
-
-      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-        <a href="{{ url_for('design.index') }}" class="btn btn-outline">취소</a>
-        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 변경 요청 등록 (초안)' }}</button>
-      </div>
-    </form>
+    </div>
   </div>
-</div>
-{% if item %}
+
+  <!-- ② 변경 사항 -->
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">② 변경 사항</div>
+    <div class="card-body">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">변경 구분 <span style="color:var(--danger)">*</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:18px;padding:12px 14px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          {% for key, label in [('m4_man','사람(Man)'),('m4_machine','기계(Machine)'),('m4_material','재료(Material)'),('m4_method','방법(Method)')] %}
+          <label style="display:flex;align-items:center;gap:7px;font-size:0.86rem;cursor:pointer;">
+            <input type="checkbox" name="{{ key }}" class="m4-chk" data-cat="{{ {'m4_man':'사람','m4_machine':'설비','m4_material':'재료','m4_method':'방법'}[key] }}" style="width:17px;height:17px;" onchange="filterCriteria()" {% if item and item[key] %}checked{% endif %}> {{ label }}
+          </label>
+          {% endfor %}
+          <label style="display:flex;align-items:center;gap:7px;font-size:0.86rem;">
+            기타 <input type="text" name="m4_etc" id="m4Etc" class="form-control" style="width:180px;padding:5px 9px;"
+                        value="{{ item.m4_etc if item else '' }}" placeholder="(직접입력)" oninput="filterCriteria()">
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">4M 신고 기준표 항목 <span style="font-weight:400;color:var(--text-muted);font-size:0.76rem;" id="critHint">(위 변경 구분을 먼저 선택하세요)</span></label>
+        <select name="criteria_key" class="form-control" id="criteriaSel" onchange="showCriteria()">
+          <option value="">-- 해당 항목 선택 (선택사항) --</option>
+          {% for code, cat, title, self_ok, qa_ok, cust in criteria %}
+          <option value="{{ code }}" data-self="{{ 1 if self_ok else 0 }}" data-qa="{{ 1 if qa_ok else 0 }}" data-cust="{{ 1 if cust else 0 }}"
+            {% if item and item.criteria_key == code %}selected{% endif %}>[{{ cat }}] {{ title }}</option>
+          {% endfor %}
+        </select>
+        <div id="criteriaInfo" style="display:none;margin-top:8px;padding:10px 14px;border-radius:var(--radius-sm);font-size:0.82rem;"></div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">변경 제목 <span style="color:var(--danger)">*</span></label>
+        <input type="text" name="change_title" class="form-control" required
+               placeholder="예: 메인 PCB 커넥터 공급업체 변경" value="{{ item.change_title if item else '' }}">
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">변경 사유 <span style="color:var(--danger)">*</span></label>
+        <textarea name="change_reason" class="form-control" rows="2" required
+                  placeholder="변경이 필요한 사유를 정확하게 기재하세요. (절차서 5.1.1)">{{ item.change_reason if item else '' }}</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">변경 내용 <span style="color:var(--danger)">*</span></label>
+        <textarea name="change_content" class="form-control" rows="2" required
+                  placeholder="변경 내용을 구체적으로 기재하세요.">{{ item.change_content if item else '' }}</textarea>
+      </div>
+
+      <!-- 변경 전 / 변경 후 (사진 첨부 포함) -->
+      <label class="form-label">변경 전 / 변경 후 <span style="font-weight:400;color:var(--text-muted);font-size:0.76rem;">(내용 + 사진 첨부 가능)</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;">
+        <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="background:#f1f5f9;padding:8px 12px;font-size:0.82rem;font-weight:700;color:var(--text-secondary);">변 경 전</div>
+          <div style="padding:12px;">
+            <textarea name="before_spec" class="form-control" rows="4" placeholder="변경 전 사양·상태">{{ item.before_spec if item else '' }}</textarea>
+            <label class="form-label" style="margin-top:10px;font-size:0.78rem;">📷 변경 전 사진·자료</label>
+            <input type="file" name="files_before" class="form-control" multiple
+                   accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx">
+            {% if item %}
+              {% set before_atts = item.attachments.filter_by(slot='before').all() %}
+              {% if before_atts %}
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+                {% for a in before_atts %}
+                <span style="font-size:0.72rem;color:var(--text-muted);">📎 {{ a.file_name[:18] }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        <div style="border:1px solid var(--iso-q);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="background:var(--iso-q-light);padding:8px 12px;font-size:0.82rem;font-weight:700;color:var(--iso-q);">변 경 후</div>
+          <div style="padding:12px;">
+            <textarea name="after_spec" class="form-control" rows="4" placeholder="변경 후 사양·상태">{{ item.after_spec if item else '' }}</textarea>
+            <label class="form-label" style="margin-top:10px;font-size:0.78rem;">📷 변경 후 사진·자료</label>
+            <input type="file" name="files_after" class="form-control" multiple
+                   accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx">
+            {% if item %}
+              {% set after_atts = item.attachments.filter_by(slot='after').all() %}
+              {% if after_atts %}
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+                {% for a in after_atts %}
+                <span style="font-size:0.72rem;color:var(--text-muted);">📎 {{ a.file_name[:18] }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ 변경 일정 -->
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">③ 변경 일정</div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">검토용 Sample 제출일</label>
+          <input type="date" name="sample_date" class="form-control" value="{{ item.sample_date if item and item.sample_date else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">재고 수량</label>
+          <input type="text" name="stock_qty" class="form-control" placeholder="예: 1,200 EA" value="{{ item.stock_qty if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">양산 적용 목표일</label>
+          <input type="date" name="apply_date" class="form-control" value="{{ item.apply_date if item and item.apply_date else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">기타</label>
+          <input type="text" name="schedule_note" class="form-control" value="{{ item.schedule_note if item else '' }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ 관련 서류 -->
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">④ 관련 서류 <span style="font-weight:400;color:var(--text-muted);font-size:0.78rem;">— 표준문서 제/개정 및 시험결과</span></div>
+    <div class="card-body">
+      <!-- 표준문서 제/개정 · 시험결과 — 항목별 개별 첨부 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+        <!-- 표준문서 제/개정 항목 -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="background:var(--bg-base);padding:9px 14px;font-size:0.84rem;font-weight:700;border-bottom:1px solid var(--border);">표준문서 제/개정 항목</div>
+          <div style="padding:12px 14px;">
+            {% for key, label in doc_slots %}
+            {% set has_file = item and item.attachments.filter_by(slot=key).count() > 0 %}
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;{% if not loop.last %}border-bottom:1px solid var(--border-light);{% endif %}">
+              <span style="flex:0 0 96px;font-size:0.83rem;font-weight:600;">{{ label }}</span>
+              <label class="doc-file-btn" style="flex:0 0 auto;">
+                <input type="file" name="files_{{ key }}" multiple style="display:none;"
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif"
+                       onchange="onPick(this, 'nm_{{ key }}')">
+                <span class="btn btn-outline btn-sm" style="cursor:pointer;">📎 첨부</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:0.8rem;color:var(--text-muted);cursor:pointer;flex:0 0 auto;">
+                <input type="checkbox" name="na_{{ key }}" style="width:15px;height:15px;"> 해당없음
+              </label>
+              <span id="nm_{{ key }}" style="font-size:0.74rem;color:var(--accent);flex:1;word-break:break-all;">
+                {%- if has_file %}✔ {{ item.attachments.filter_by(slot=key).count() }}건 첨부됨{% endif -%}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- 시험 결과 -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+          <div style="background:var(--bg-base);padding:9px 14px;font-size:0.84rem;font-weight:700;border-bottom:1px solid var(--border);">시험 결과</div>
+          <div style="padding:12px 14px;">
+            {% for key, label in test_slots %}
+            {% set has_file = item and item.attachments.filter_by(slot=key).count() > 0 %}
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;{% if not loop.last %}border-bottom:1px solid var(--border-light);{% endif %}">
+              <span style="flex:0 0 110px;font-size:0.83rem;font-weight:600;">{{ label }}</span>
+              <label class="doc-file-btn" style="flex:0 0 auto;">
+                <input type="file" name="files_{{ key }}" multiple style="display:none;"
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif"
+                       onchange="onPick(this, 'nm_{{ key }}')">
+                <span class="btn btn-outline btn-sm" style="cursor:pointer;">📎 첨부</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:0.8rem;color:var(--text-muted);cursor:pointer;flex:0 0 auto;">
+                <input type="checkbox" name="na_{{ key }}" style="width:15px;height:15px;"> 해당없음
+              </label>
+              <span id="nm_{{ key }}" style="font-size:0.74rem;color:var(--accent);flex:1;word-break:break-all;">
+                {%- if has_file %}✔ {{ item.attachments.filter_by(slot=key).count() }}건 첨부됨{% endif -%}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- 기타 관련 자료 -->
+      <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:16px;">
+        <div style="background:var(--bg-base);padding:9px 14px;font-size:0.84rem;font-weight:700;border-bottom:1px solid var(--border);">기타 관련 자료</div>
+        <div style="padding:12px 14px;display:flex;align-items:center;gap:10px;">
+          <label class="doc-file-btn">
+            <input type="file" name="files_etc" multiple style="display:none;"
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif"
+                   onchange="onPick(this, 'nm_etc')">
+            <span class="btn btn-outline btn-sm" style="cursor:pointer;">📎 첨부</span>
+          </label>
+          <span style="font-size:0.78rem;color:var(--text-muted);">도면·공정표·사양서 등 기타 자료</span>
+          <span id="nm_etc" style="font-size:0.74rem;color:var(--accent);flex:1;word-break:break-all;">
+            {%- if item and item.attachments.filter_by(slot='etc').count() > 0 %}✔ {{ item.attachments.filter_by(slot='etc').count() }}건 첨부됨{% endif -%}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if not item %}
+  <!-- ⑤ 관계부서 지정 -->
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">⑤ 관계부서 검토 지정 <span style="font-weight:400;color:var(--text-muted);font-size:0.78rem;">— 절차서 5.2.1</span></div>
+    <div class="card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:18px;">
+        {% for d in review_depts %}
+        <label style="display:flex;align-items:center;gap:7px;font-size:0.86rem;cursor:pointer;">
+          <input type="checkbox" name="review_depts" value="{{ d }}" style="width:17px;height:17px;" checked> {{ d }}
+        </label>
+        {% endfor %}
+      </div>
+      <p style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">선택한 부서에 검토 요청이 생성됩니다. 각 부서는 검토의견을 작성·서명합니다.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="display:flex;gap:12px;justify-content:flex-end;margin-bottom:30px;">
+    <a href="{{ url_for('design.index') }}" class="btn btn-outline">취소</a>
+    <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 신고서 등록 (작성중)' }}</button>
+  </div>
+</form>
+
 <script>
-(function () {
-  document.querySelector('select[name="change_type"]').value = {{ (item.change_type or '')|tojson }};
-  document.querySelector('select[name="department_id"]').value = {{ (item.department_id or '')|tojson }};
-})();
-</script>
+function onPick(input, spanId) {
+  const el = document.getElementById(spanId);
+  if (!el) return;
+  const names = [...input.files].map(f => f.name);
+  el.textContent = names.length ? '✔ ' + names.join(', ') : '';
+}
+
+// 변경 구분 체크에 따라 기준표 항목 필터링
+function filterCriteria() {
+  const sel = document.getElementById('criteriaSel');
+  const hint = document.getElementById('critHint');
+  const cats = [...document.querySelectorAll('.m4-chk')].filter(c => c.checked).map(c => c.dataset.cat);
+  const etc = (document.getElementById('m4Etc') || {}).value;
+  if (etc && etc.trim()) cats.push('기타');
+  let shown = 0;
+  [...sel.options].forEach(o => {
+    if (!o.value) return;                       // 안내 옵션은 항상 유지
+    const m = o.textContent.match(/^\[(.+?)\]/);
+    const cat = m ? m[1] : '';
+    const ok = cats.length === 0 || cats.includes(cat);
+    o.hidden = !ok;
+    o.disabled = !ok;
+    if (ok) shown++;
+  });
+  // 숨겨진 항목이 선택돼 있으면 초기화
+  if (sel.selectedIndex > 0 && sel.options[sel.selectedIndex].hidden) {
+    sel.value = '';
+    showCriteria();
+  }
+  if (hint) {
+    hint.textContent = cats.length === 0
+      ? '(위 변경 구분을 먼저 선택하세요)'
+      : '(' + cats.join('·') + ' 관련 ' + shown + '개 항목)';
+  }
+}
+
+function showCriteria() {
+  const sel = document.getElementById('criteriaSel');
+  const box = document.getElementById('criteriaInfo');
+  const o = sel.options[sel.selectedIndex];
+  if (!sel.value) { box.style.display = 'none'; return; }
+  const self_ok = o.dataset.self === '1', qa = o.dataset.qa === '1', cust = o.dataset.cust === '1';
+  let path = [];
+  if (self_ok) path.push('자체승인');
+  if (qa) path.push('품질승인');
+  if (cust) path.push('<strong>고객통보/승인</strong>');
+  box.innerHTML = '📌 승인 경로: ' + path.join(' → ') + (cust ? ' — 고객사 승인 절차가 필요한 항목입니다.' : ' — 사내 승인으로 종결 가능합니다.');
+  box.style.background = cust ? '#fef9c3' : '#eff6ff';
+  box.style.border = '1px solid ' + (cust ? '#eab308' : '#bfdbfe');
+  box.style.color = cust ? '#854d0e' : '#1e40af';
+  box.style.display = 'block';
+  // 4M 구분 자동 체크
+  const cat = o.textContent.match(/^\[(.+?)\]/);
+  if (cat) {
+    const map = {'사람':'m4_man','설비':'m4_machine','재료':'m4_material','방법':'m4_method'};
+    const f = map[cat[1]];
+    if (f) document.querySelector('input[name="' + f + '"]').checked = true;
+  }
+}
+{% if item %}
+document.querySelector('select[name="department_id"]').value = {{ (item.department_id or '')|tojson }};
 {% endif %}
+window.addEventListener('DOMContentLoaded', function(){ filterCriteria(); showCriteria(); });
+</script>
 {% endblock %}

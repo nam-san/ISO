@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}구버전 관리{% endblock %}
+{% block breadcrumb %}📁 기준문서 관리 › 구버전 관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">구버전 관리 <span>Obsolete Documents</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      개정본 승인으로 효력을 잃은 구문서입니다. <strong style="color:var(--danger);">업무 사용·배포가 금지</strong>되며, 승인권자 최종 승인 시 삭제됩니다. (폐지 후 1년 이상 보존)
+    </p>
+  </div>
+  <a href="{{ url_for('documents.category', cat='manual_proc') }}" class="btn btn-outline">← 문서 목록</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;background:#fff5f5;border-color:#fecaca;">
+  <div style="padding:12px 18px;font-size:0.82rem;color:#991b1b;">
+    ⛔ <strong>구문서 취급 기준 (NV-P-001 문서관리절차서 7항)</strong> —
+    개정·폐지된 표준서는 즉시 회수하며, 참고 보관 시 원본에 한하여 "구문서" 표시를 하여 별도 보관합니다. 유효본과 반드시 구분하여 오사용을 방지하십시오.
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:14px 20px;">
+    <form method="GET" style="display:flex;gap:10px;align-items:flex-end;">
+      <div style="flex:1;max-width:340px;">
+        <label class="form-label">검색</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="문서번호 / 문서명">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+      <a href="{{ url_for('documents.obsolete') }}" class="btn btn-outline btn-sm">초기화</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">구버전 문서 <strong>{{ documents|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>문서번호</th><th>문서명</th><th>유형</th><th>개정차수</th>
+          <th>제정일</th><th>폐지일</th><th>대체 현행문서</th><th>소관부서</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in documents %}
+      {% set cur = current_map.get(d.id) %}
+      <tr class="doc-obsolete" style="cursor:pointer;" onclick="location.href='{{ url_for('documents.detail', doc_id=d.id) }}'">
+        <td style="font-family:monospace;font-size:0.8rem;font-weight:700;">{{ d.doc_number }}</td>
+        <td style="font-weight:600;">{{ d.title }}</td>
+        <td style="font-size:0.8rem;">{{ d.doc_type }}</td>
+        <td><span class="status-badge status-obsolete">구문서 REV{{ d.revision_no or 0 }}</span></td>
+        <td class="date-cell">{{ d.enactment_date or '-' }}</td>
+        <td class="date-cell">{{ d.approved_at.strftime('%Y-%m-%d') if d.approved_at else '-' }}</td>
+        <td>
+          {% if cur %}
+          <a href="{{ url_for('documents.detail', doc_id=cur.id) }}" onclick="event.stopPropagation();"
+             style="color:var(--accent);font-weight:600;font-size:0.8rem;">{{ cur.doc_number }} (REV{{ cur.revision_no or 0 }}) →</a>
+          {% else %}<span style="color:var(--text-muted);font-size:0.8rem;">-</span>{% endif %}
+        </td>
+        <td style="font-size:0.8rem;">{{ d.department.name if d.department else '-' }}</td>
+        <td style="white-space:nowrap;" onclick="event.stopPropagation();">
+          <a href="{{ url_for('documents.detail', doc_id=d.id) }}" class="btn btn-outline btn-sm">상세</a>
+          {% if current_user.has_approve() %}
+          <form method="POST" action="{{ url_for('documents.delete', doc_id=d.id) }}" style="display:inline;"
+                onsubmit="return confirm('구문서 [{{ d.doc_number }} REV{{ d.revision_no or 0 }}]를 최종 삭제하시겠습니까?\n\n※ 보존기간(폐지 후 1년)을 확인하세요. 되돌릴 수 없습니다.');">
+            <button type="submit" class="btn btn-danger btn-sm" title="승인권자 최종 삭제">🗑️ 최종삭제</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">구버전 문서가 없습니다. 개정본이 승인되면 이곳에 구문서가 표시됩니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

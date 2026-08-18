@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ cat_title }}{% endblock %}
+{% block breadcrumb %}📁 기준문서 관리 › {{ cat_title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ cat_icon }} {{ cat_title }} <span>Documents</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ cat_desc }}</p>
+  </div>
+  {% if current_user.has_edit() %}
+  <a href="{{ url_for('documents.new') }}" class="btn btn-primary">＋ 기준문서 등록</a>
+  {% endif %}
+</div>
+
+<!-- 카테고리 탭 -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  {% for c, label, ic in [('manual_proc','매뉴얼·절차서','📘'),('guide','지침서·지도서','📗'),('form','서식','📄')] %}
+  <a href="{{ url_for('documents.category', cat=c) }}"
+     class="btn btn-sm {% if cat==c %}btn-primary{% else %}btn-secondary{% endif %}">{{ ic }} {{ label }} ({{ counts[c] }})</a>
+  {% endfor %}
+  {% if obsolete_count %}
+  <a href="{{ url_for('documents.obsolete') }}" class="btn btn-sm btn-secondary"
+     style="margin-left:auto;color:#b91c1c;" title="개정본 승인으로 효력을 잃은 구문서">🗄️ 구버전 관리 ({{ obsolete_count }})</a>
+  {% endif %}
+</div>
+
+<!-- 검색 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:14px 20px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:180px;">
+        <label class="form-label">검색어</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="문서번호 / 문서명">
+      </div>
+      <div>
+        <label class="form-label">상태</label>
+        <select name="status" class="form-control">
+          <option value="">전체</option>
+          <option value="active" {% if status=='active' %}selected{% endif %}>현행(배포중)</option>
+          <option value="draft" {% if status=='draft' %}selected{% endif %}>초안</option>
+          <option value="review" {% if status=='review' %}selected{% endif %}>검토·승인대기</option>
+          <option value="obsolete" {% if status=='obsolete' %}selected{% endif %}>구버전(폐기대기)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('documents.category', cat=cat) }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">총 {{ documents|length }}건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>문서번호</th><th>문서명</th><th>유형</th><th>규격</th>
+          <th>제정일</th><th>개정</th><th>개정일</th><th>소관부서</th><th>상태</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in documents %}
+      <tr class="{% if d.status=='obsolete' %}doc-obsolete{% endif %}" style="cursor:pointer;" onclick="location.href='{{ url_for('documents.detail', doc_id=d.id) }}'">
+        <td style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:700;">{{ d.doc_number }}</td>
+        <td style="font-weight:600;">{{ d.title }}
+          {% if d.doc_type=='서식' and d.related_procedure %}
+          <div style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">↳ {{ d.related_procedure.doc_number }} 연계</div>
+          {% endif %}
+        </td>
+        <td style="font-size:0.8rem;">{{ d.doc_type }}</td>
+        <td>
+          {% if d.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">9001</span>
+          {% elif d.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">14001</span>
+          {% elif d.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">45001</span>
+          {% else %}<span class="iso-chip">통합</span>{% endif %}
+        </td>
+        <td class="date-cell">{{ d.enactment_date or '-' }}</td>
+        <td style="text-align:center;font-size:0.8rem;">REV{{ d.revision_no or 0 }}</td>
+        <td class="date-cell">{{ d.effective_date or '-' }}</td>
+        <td style="font-size:0.8rem;">{{ d.department.name if d.department else '-' }}</td>
+        <td>
+          {% if d.status=='active' %}<span class="status-badge status-active">현행</span>
+          {% elif d.status=='review' %}<span class="status-badge status-review">{% if d.supersedes_id %}개정 승인대기{% else %}승인대기{% endif %}</span>
+          {% elif d.status=='draft' %}<span class="status-badge status-draft">{% if d.supersedes_id %}개정 초안{% else %}초안{% endif %}</span>
+          {% elif d.status=='obsolete' %}<span class="status-badge status-obsolete">구버전</span>
+          {% else %}<span class="status-badge status-draft">{{ d.status }}</span>{% endif %}
+        </td>
+        <td><a href="{{ url_for('documents.detail', doc_id=d.id) }}" class="btn btn-outline btn-sm">열람</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty-cell">등록된 문서가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

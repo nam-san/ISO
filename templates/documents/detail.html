@@ -17,37 +17,81 @@
       <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
     </form>
     {% endif %}
-    <a href="{{ url_for('documents.index') }}" class="btn btn-outline">← 목록</a>
+    {% set back_cat = {'매뉴얼':'manual_proc','절차서':'manual_proc','지침서':'guide','서식':'form'}.get(doc.doc_type, 'manual_proc') %}
+    <a href="{{ url_for('documents.category', cat=back_cat) }}" class="btn btn-outline">← 목록</a>
   </div>
 </div>
 
 {% if doc.status == 'obsolete' %}
 <div class="info-box" style="background-color:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:15px; border-radius:8px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
   <span style="font-size:1.8rem;">⚠️</span>
+  <div style="flex:1;">
+    <strong style="font-size:1rem; display:block; margin-bottom:4px;">[구버전 · 폐기대기] 본 표준서는 개정본 승인으로 효력을 잃은 구버전입니다.</strong>
+    <span style="font-size:0.82rem;">
+      {% if doc.revised_child %}현행 문서: <a href="{{ url_for('documents.detail', doc_id=doc.revised_child.id) }}" style="color:#991b1b;text-decoration:underline;font-weight:700;">{{ doc.revised_child.doc_number }} (REV{{ doc.revised_child.revision_no }})</a> · {% endif %}
+      사내 표준 업무에 사용할 수 없습니다. 승인권자의 최종 확인 후 폐기됩니다.
+    </span>
+  </div>
+  {% if current_user.has_approve() %}
+  <form method="POST" action="{{ url_for('documents.dispose_old', doc_id=doc.id) }}"
+        onsubmit="return confirm('구버전 문서를 최종 폐기(삭제)하시겠습니까? 되돌릴 수 없습니다.');">
+    <button type="submit" class="btn btn-danger">🗑️ 구버전 최종 폐기</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if doc.supersedes_id and doc.status != 'active' %}
+<div class="info-box" style="background:#fef9c3;border:1px solid #eab308;color:#854d0e;padding:14px 16px;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+  <span style="font-size:1.6rem;">🔄</span>
   <div>
-    <strong style="font-size:1rem; display:block; margin-bottom:4px;">[폐지 문서 알림] 본 표준서는 공식적으로 폐지된 구문서입니다.</strong>
-    <span style="font-size:0.82rem;">사내 표준 업무에 사용할 수 없으며, 참고용으로만 활용하시기 바랍니다. (구문서 관리 지침에 의거하여 폐지 후 1년간 의무 보존됩니다.)</span>
+    <strong style="display:block;margin-bottom:3px;">[개정본 · {{ '승인대기' if doc.status=='review' else '작성중' }}] REV{{ doc.revision_no }} 개정본입니다.</strong>
+    <span style="font-size:0.82rem;">
+      승인 전까지 기존 문서{% if doc.supersedes %} <a href="{{ url_for('documents.detail', doc_id=doc.supersedes.id) }}" style="color:#854d0e;text-decoration:underline;font-weight:700;">{{ doc.supersedes.doc_number }} (REV{{ doc.supersedes.revision_no or 0 }})</a>{% endif %}이(가) 현행으로 유지됩니다.
+    </span>
   </div>
 </div>
 {% endif %}
 
 <!-- 문서 상세: 좌(본문) / 우(기본정보·상태·첨부) -->
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start;">
+<div class="doc-detail-grid" data-wide="0" style="display:grid;grid-template-columns:minmax(0,3.2fr) minmax(280px,1fr);gap:16px;align-items:start;">
 
   <!-- ══════ 좌측: 문서 본문 ══════ -->
   <div>
     <div class="card">
-      <div class="card-header">📄 문서 본문</div>
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>📄 문서 본문</span>
+        {% if file_url and doc.file_name and doc.file_name.lower().endswith('.pdf') %}
+        <span style="display:flex;gap:6px;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="toggleWide()" id="wideBtn" title="본문 영역 넓게 보기">↔️ 넓게 보기</button>
+          {% if doc.status != 'obsolete' %}
+          <a href="{{ file_url }}" target="_blank" class="btn btn-outline btn-sm" title="새 창에서 크게 보기">🔍 새 창</a>
+          {% endif %}
+        </span>
+        {% endif %}
+      </div>
       {% if file_url and doc.file_name and doc.file_name.lower().endswith('.pdf') %}
-      <div class="card-body" style="padding:0; height:820px; overflow:hidden;">
-        <iframe src="{{ file_url }}" style="width:100%; height:100%; border:none;"></iframe>
+      <div class="card-body" style="padding:0; height:calc(100vh - 210px); min-height:640px; overflow:hidden; position:relative;">
+        <iframe src="{{ file_url }}#pagemode=none&view=FitH&zoom=page-width"
+                style="width:100%; height:100%; border:none;"></iframe>
+        {% if doc.status == 'obsolete' %}
+        <!-- 구문서 워터마크 (열람은 가능하되 사용·배포 금지를 명확히 표시) -->
+        <div class="obsolete-watermark" aria-hidden="true">
+          <div class="obsolete-watermark-text">구문서<br><span>사용·배포 금지</span></div>
+        </div>
+        <div class="obsolete-ribbon">⛔ 구문서 — 업무 사용 및 배포 금지</div>
+        {% endif %}
       </div>
       {% elif file_url %}
       <div class="card-body" style="text-align:center;padding:60px 24px;">
         <div style="font-size:3rem;margin-bottom:12px;">📎</div>
         <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">{{ doc.file_name }}</p>
+        {% if doc.status == 'obsolete' %}
+        <p style="font-size:0.82rem;color:#b91c1c;margin-bottom:20px;font-weight:600;">⛔ 구문서는 업무 사용·배포가 금지되어 다운로드할 수 없습니다.</p>
+        {% else %}
         <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;">PDF가 아닌 문서는 미리보기가 지원되지 않습니다. 우측에서 파일을 다운로드해 확인하세요.</p>
-        <a href="{{ file_url }}" class="btn btn-outline" download>⬇️ 파일 다운로드</a>
+        <a href="{{ url_for('documents.download', doc_id=doc.id) }}" class="btn btn-outline">⬇️ 파일 다운로드</a>
+        {% endif %}
       </div>
       {% else %}
       <div class="card-body" style="text-align:center;padding:60px 24px;color:var(--text-muted);">
@@ -57,46 +101,116 @@
       {% endif %}
     </div>
 
-    <!-- 버전 이력 (구문서 관리 포함) -->
+    <!-- 관련 양식(서식) — 절차서·매뉴얼은 채번 연계 서식, 지침서는 지정된 전용 서식 -->
+    {% if doc.doc_type == '지침서' %}
+      {% set forms = doc.guide_forms|list if doc.guide_forms else [] %}
+    {% else %}
+      {% set forms = doc.related_forms|list if doc.related_forms else [] %}
+    {% endif %}
+    {% if doc.doc_type in ['절차서','매뉴얼','지침서'] %}
     <div class="card" style="margin-top:20px;">
-      <div class="card-header">🔄 구문서 및 버전 이력 (폐지후 1년 보존)</div>
+      <div class="card-header">📄 관련 양식 (서식) {% if forms %}<span style="font-weight:400;color:var(--text-muted);font-size:0.8rem;">— {{ forms|length }}건</span>{% endif %}</div>
       <div class="card-body" style="padding:0;">
-        {% if versions %}
+        {% if forms %}
         <table class="data-table">
-          <thead><tr><th>버전</th><th>개정사유/폐지일</th><th>개정자</th><th>구문서 첨부 및 보존기한</th></tr></thead>
+          <thead><tr><th>서식번호</th><th>서식명</th><th>개정</th><th>상태</th><th>다운로드</th></tr></thead>
           <tbody>
-          {% for v in versions %}
-          <tr style="background-color: #fffaf0;">
-            <td><span class="badge badge-warning" style="background-color:#d97706;color:white;font-size:0.75rem;">구문서 v{{ v.version }}</span></td>
+          {% for f in forms|sort(attribute='doc_number') %}
+          <tr>
+            <td style="font-family:monospace;font-size:0.8rem;color:var(--accent);font-weight:700;">{{ f.doc_number }}</td>
+            <td><a href="{{ url_for('documents.detail', doc_id=f.id) }}" style="font-weight:600;color:var(--text-primary);">{{ f.title }}</a></td>
+            <td style="text-align:center;font-size:0.8rem;">REV{{ f.revision_no or 0 }}</td>
             <td>
-              <div style="font-weight:500; font-size:0.85rem;">{{ v.change_reason or '개정 발행' }}</div>
-              <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">폐지일: {{ v.changed_at.strftime('%Y-%m-%d') }}</div>
+              {% if f.status=='active' %}<span class="status-badge status-active">현행</span>
+              {% elif f.status=='obsolete' %}<span class="status-badge status-obsolete">구버전</span>
+              {% else %}<span class="status-badge status-draft">{{ {'draft':'초안','review':'승인대기'}.get(f.status, f.status) }}</span>{% endif %}
             </td>
-            <td>{{ v.changed_by.name if v.changed_by else '-' }}</td>
             <td>
-              {% if v.file_path %}
-                {% set v_filename = v.file_path.split('\\')[-1].split('/')[-1] %}
-                <a href="{{ url_for('static', filename='uploads/' ~ v_filename) }}" class="btn btn-sm btn-outline" style="padding: 2px 6px; font-size: 0.72rem; border-color: #d97706; color: #d97706; display:inline-block;" download>⬇️ 구문서 다운로드</a>
-              {% else %}
-                <span class="text-muted" style="font-size:0.72rem;">파일 없음</span>
-              {% endif %}
-              <div style="font-size:0.7rem;color:#b45309;margin-top:4px;font-weight:500;">
-                ⏳ 보존만료: {{ v.changed_at.year + 1 }}-{{ v.changed_at.strftime('%m-%d') }} (폐지후 1년)
-              </div>
+              {% if f.status == 'obsolete' %}
+                <span class="text-muted" style="font-size:0.75rem;color:#b91c1c;">⛔ 구문서(배포금지)</span>
+              {% elif f.file_path %}
+                <a href="{{ url_for('documents.download', doc_id=f.id) }}" class="btn btn-outline btn-sm">⬇️ 다운로드</a>
+              {% else %}<span class="text-muted" style="font-size:0.75rem;">파일 없음</span>{% endif %}
             </td>
           </tr>
           {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <div class="empty-state" style="padding:24px;"><p>버전 이력(구문서)이 없습니다.</p></div>
+        <div class="empty-state" style="padding:20px;"><p style="font-size:0.84rem;">
+          연계된 관련 양식이 없습니다. 서식 등록 시 <strong>{{ '관련 지침서' if doc.doc_type == '지침서' else '관련 절차서' }}</strong>로 이 문서를 선택하면 여기에 표시됩니다.
+        </p></div>
         {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 버전 이력 (구문서 관리 포함) -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">🔄 개정 이력 <span style="font-weight:400;font-size:0.78rem;color:var(--text-muted);">— 제정 이후 개정 내역 누적</span></div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:92px;">개정차수</th>
+              <th style="width:110px;">개정일자</th>
+              <th>개정 사유 / 주요 내용</th>
+              <th style="width:90px;">개정자</th>
+              <th style="width:150px;">해당본</th>
+            </tr>
+          </thead>
+          <tbody>
+          {# 제정(REV0) — 이력에 REV0 기록이 없을 때 문서 제정정보로 표시 #}
+          {% set has_rev0 = versions|selectattr('version', 'equalto', 'REV0')|list|length > 0 %}
+          {% set origin = versions[0].src_doc if versions and versions[0].src_doc else doc %}
+          {% if not has_rev0 %}
+          <tr>
+            <td><span class="status-badge status-draft">REV0</span></td>
+            <td class="date-cell">{{ origin.enactment_date or '-' }}</td>
+            <td style="font-size:0.85rem;">최초 제정</td>
+            <td style="font-size:0.82rem;">{{ origin.created_by.name if origin.created_by else '-' }}</td>
+            <td style="font-size:0.78rem;color:var(--text-muted);">제정본</td>
+          </tr>
+          {% endif %}
+          {% for v in versions %}
+          {% set src = v.src_doc %}
+          {# 다음 개정차수(이 이력이 대체된 시점의 개정본) #}
+          <tr {% if src and src.id == doc.id %}style="background:#fffaf0;"{% endif %}>
+            <td><span class="status-badge {% if src and src.id == doc.id %}status-review{% else %}status-draft{% endif %}">{{ v.version }}</span></td>
+            <td class="date-cell">{{ v.changed_at.strftime('%Y-%m-%d') if v.changed_at else '-' }}</td>
+            <td style="font-size:0.85rem;">{{ v.change_reason or '개정 발행' }}</td>
+            <td style="font-size:0.82rem;">{{ v.changed_by.name if v.changed_by else '-' }}</td>
+            <td>
+              {% if src and src.id != doc.id %}
+                <a href="{{ url_for('documents.detail', doc_id=src.id) }}" style="color:var(--accent);font-size:0.78rem;font-weight:600;">{{ src.doc_number }} REV{{ src.revision_no or 0 }} →</a>
+              {% elif src %}
+                <span style="font-size:0.78rem;color:var(--text-muted);">현재 문서</span>
+              {% else %}
+                <span style="font-size:0.78rem;color:var(--text-muted);">-</span>
+              {% endif %}
+              {# 구문서(과거 개정본)는 오사용 방지를 위해 다운로드 제공하지 않음 #}
+            </td>
+          </tr>
+          {% endfor %}
+          {# 현행(최신) 개정차수 — 아직 개정되지 않아 이력에 없는 현재 차수 #}
+          {% set listed = versions|map(attribute='version')|list %}
+          {% if doc.revision_no and ('REV' ~ doc.revision_no) not in listed %}
+          <tr style="background:#f0fdf4;">
+            <td><span class="status-badge status-approved">REV{{ doc.revision_no }}</span></td>
+            <td class="date-cell">{{ doc.effective_date or doc.approved_at.strftime('%Y-%m-%d') if doc.approved_at else '-' }}</td>
+            <td style="font-size:0.85rem;font-weight:600;">현행본 (최신 개정)</td>
+            <td style="font-size:0.82rem;">{{ doc.created_by.name if doc.created_by else '-' }}</td>
+            <td><span style="font-size:0.78rem;color:var(--success);font-weight:600;">현재 문서</span></td>
+          </tr>
+          {% endif %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 
   <!-- ══════ 우측: 기본정보 · 상태 · 첨부 ══════ -->
-  <div>
+  <div id="docSidePanel">
     <!-- ① 문서 기본 정보 (+ 합의현황 + 개정본 발행) -->
     <div class="card" style="margin-bottom:16px;">
       <div class="card-header">📋 문서 기본 정보</div>
@@ -104,27 +218,45 @@
         <table style="width:100%;border-collapse:collapse;">
           {% macro row(label, value) %}
           <tr>
-            <td style="padding:9px 0;width:96px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
-            <td style="padding:9px 0;font-size:0.86rem;color:var(--text-primary);border-bottom:1px solid var(--border-light);">{{ value }}</td>
+            <td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">{{ label }}</td>
+            <td style="padding:6px 0;font-size:0.82rem;color:var(--text-primary);border-bottom:1px solid var(--border-light);">{{ value }}</td>
           </tr>
           {% endmacro %}
           {{ row('문서번호', doc.doc_number) }}
           {{ row('문서명', doc.title) }}
           {{ row('문서유형', doc.doc_type) }}
           <tr>
-            <td style="padding:9px 0;width:96px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">ISO 규격</td>
-            <td style="padding:9px 0;border-bottom:1px solid var(--border-light);">
+            <td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">ISO 규격</td>
+            <td style="padding:6px 0;border-bottom:1px solid var(--border-light);">
               {% if doc.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">ISO 9001</span>
               {% elif doc.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">ISO 14001</span>
               {% elif doc.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">ISO 45001</span>
               {% else %}<span>{{ doc.iso_standard }}</span>{% endif %}
             </td>
           </tr>
-          {{ row('버전', 'v' + doc.version) }}
+          {{ row('개정차수', doc.version) }}
           {{ row('소관부서', doc.department.name if doc.department else '-') }}
+          {% if doc.doc_type == '서식' %}
+          <tr>
+            <td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">관련 절차서</td>
+            <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);">
+              {% if doc.related_procedure %}
+              <a href="{{ url_for('documents.detail', doc_id=doc.related_procedure.id) }}" style="color:var(--accent);font-weight:600;">{{ doc.related_procedure.doc_number }} {{ doc.related_procedure.title }}</a>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">관련 지침서</td>
+            <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);">
+              {% if doc.related_guide %}
+              <a href="{{ url_for('documents.detail', doc_id=doc.related_guide.id) }}" style="color:var(--accent);font-weight:600;">{{ doc.related_guide.doc_number }} {{ doc.related_guide.title }}</a>
+              {% else %}<span style="color:var(--text-muted);">-</span>{% endif %}
+            </td>
+          </tr>
+          {% endif %}
           {{ row('작성자', doc.created_by.name if doc.created_by else '-') }}
           {{ row('승인자', doc.approved_by.name if doc.approved_by else '미승인') }}
-          {{ row('시행일', doc.effective_date or '-') }}
+          {{ row('개정일', doc.effective_date or '-') }}
           {{ row('등록일', doc.created_at.strftime('%Y-%m-%d %H:%M')) }}
         </table>
         {% if doc.description %}
@@ -261,16 +393,44 @@
       </div>
     </div>
 
-    <!-- ③ 첨부파일 다운로드 -->
+    <!-- ③ 첨부파일 다운로드 (구문서는 배포 금지로 다운로드 제공 안 함) -->
     {% if file_url %}
     <div class="card">
       <div class="card-header">📎 첨부파일</div>
       <div class="card-body">
         <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">{{ doc.file_name }}</p>
-        <a href="{{ file_url }}" class="btn btn-outline" style="width:100%;text-align:center;" download>⬇️ 파일 다운로드</a>
+        {% if doc.status == 'obsolete' %}
+        <div style="background:#fff5f5;border:1px solid #fecaca;color:#991b1b;border-radius:var(--radius-sm);padding:10px 12px;font-size:0.78rem;line-height:1.5;">
+          ⛔ <strong>구문서 다운로드 제한</strong><br>
+          업무 사용·배포가 금지된 구버전입니다. 최신 개정본을 이용하세요.
+        </div>
+        {% else %}
+        <a href="{{ url_for('documents.download', doc_id=doc.id) }}" class="btn btn-outline" style="width:100%;text-align:center;">⬇️ 파일 다운로드</a>
+        {% endif %}
       </div>
     </div>
     {% endif %}
   </div>
 </div>
+
+<script>
+// 본문 넓게 보기 — 우측 정보 패널을 접어 PDF 영역을 최대폭으로
+function toggleWide() {
+  const grid = document.querySelector('.doc-detail-grid');
+  const side = document.getElementById('docSidePanel');
+  const btn = document.getElementById('wideBtn');
+  const wide = grid.dataset.wide === '1';
+  if (wide) {
+    grid.style.gridTemplateColumns = 'minmax(0,3.2fr) minmax(280px,1fr)';
+    side.style.display = '';
+    btn.textContent = '↔️ 넓게 보기';
+    grid.dataset.wide = '0';
+  } else {
+    grid.style.gridTemplateColumns = '1fr';
+    side.style.display = 'none';
+    btn.textContent = '↩️ 정보 보기';
+    grid.dataset.wide = '1';
+  }
+}
+</script>
 {% endblock %}

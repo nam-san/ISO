@@ -1,0 +1,10 @@
+{# ══════════════════════════════════════════════════════════════
+   GHS 표준 픽토그램 — 공식 이미지(static/img/ghs/GHS01~09.gif) 사용
+   사용: {% import 'msds/_ghs_svg.html' as ghs %} → {{ ghs.picto('GHS02', '15mm') }}
+   ══════════════════════════════════════════════════════════════ #}
+
+{% macro picto(code, size) %}
+<img src="{{ url_for('static', filename='img/ghs/' ~ code ~ '.gif') }}"
+     alt="{{ code }}" class="ghs-svg"
+     style="width:{{ size }};height:{{ size }};object-fit:contain;">
+{% endmacro %}

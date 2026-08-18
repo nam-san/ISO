@@ -76,9 +76,12 @@
       </thead>
       <tbody>
       {% for rec in records %}
-      <tr>
+      <tr style="cursor:pointer;" onclick="location.href='{{ url_for('records.detail', rid=rec.id) }}'">
         <td style="font-family:monospace;font-size:0.78rem;color:var(--accent);">{{ rec.record_number }}</td>
-        <td style="font-weight:600;">{{ rec.title }}</td>
+        <td style="font-weight:600;">
+          <a href="{{ url_for('records.detail', rid=rec.id) }}" style="color:var(--text-primary);">{{ rec.title }}</a>
+          {% if rec.file_name %}<span title="{{ rec.file_name }}" style="margin-left:5px;">📎</span>{% endif %}
+        </td>
         <td>{{ rec.record_type }}</td>
         <td>
           {% if rec.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">9001</span>
@@ -91,7 +94,8 @@
         <td style="text-align:center;">{{ rec.retention_years }}년</td>
         <td class="date-cell" style="{% if rec.disposal_date and rec.disposal_date <= today %}color:var(--danger);font-weight:600;{% endif %}">{{ rec.disposal_date or '-' }}</td>
         <td><span class="status-badge {% if rec.status == 'active' %}status-active{% else %}status-obsolete{% endif %}">{{ '활성' if rec.status == 'active' else '폐기' }}</span></td>
-        <td>
+        <td onclick="event.stopPropagation();" style="white-space:nowrap;">
+          <a href="{{ url_for('records.detail', rid=rec.id) }}" class="btn btn-outline btn-sm" title="기록 내용 보기">👁️ 보기</a>
           {% if rec.status == 'active' and current_user.has_edit() and (current_user.is_admin() or rec.created_by_id == current_user.id) %}
           {{ icons.edit_link(url_for('records.edit', rid=rec.id)) }}
           {% endif %}

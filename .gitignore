@@ -30,7 +30,7 @@ desktop.ini
 .idea/
 *.swp
 
-# Claude Code / AI 도구 관련 (앱과 무관 - 저장소에서 제외)
+# 개발 도구 (앱 실행과 무관)
 .claude/
 .agents/
 docs/superpowers/

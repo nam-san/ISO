@@ -161,6 +161,39 @@ def edit(rid):
                            today=date.today(), item=rec)
 
 
+@records_bp.route('/<int:rid>')
+@login_required
+def detail(rid):
+    """실행기록 상세 — 첨부 파일 미리보기(PDF는 본문 표시)"""
+    rec = Record.query.get_or_404(rid)
+    file_url = None
+    if rec.file_path:
+        file_url = url_for('static', filename=f'uploads/{os.path.basename(rec.file_path)}')
+    related_doc = Document.query.get(rec.related_doc_id) if rec.related_doc_id else None
+    db.session.add(AuditTrail(user_id=current_user.id, action='기록열람',
+        target_type='record', target_id=rec.id,
+        target_name=f'{rec.record_number} {rec.title}'))
+    db.session.commit()
+    return render_template('records/detail.html', rec=rec, file_url=file_url,
+                           related_doc=related_doc, today=date.today())
+
+
+@records_bp.route('/<int:rid>/download')
+@login_required
+def download(rid):
+    """기록 첨부 파일 다운로드"""
+    rec = Record.query.get_or_404(rid)
+    if not rec.file_path or not os.path.exists(rec.file_path):
+        flash('첨부 파일을 찾을 수 없습니다.', 'warning')
+        return redirect(url_for('records.detail', rid=rid))
+    db.session.add(AuditTrail(user_id=current_user.id, action='기록다운로드',
+        target_type='record', target_id=rec.id,
+        target_name=f'{rec.record_number} {rec.title}'))
+    db.session.commit()
+    return send_file(rec.file_path, as_attachment=True,
+                     download_name=rec.file_name or os.path.basename(rec.file_path))
+
+
 @records_bp.route('/<int:rid>/delete', methods=['POST'])
 @login_required
 def delete(rid):

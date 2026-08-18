@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}MSDS 관리{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 관리 › MSDS 등록부{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">MSDS 등록부 <span>Chemical Substance Register</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      취급 화학물질의 물질안전보건자료(MSDS)를 등록·관리합니다. (NV-P-045 화학물질 및 산업보건관리 절차서 4.1~4.3)
+    </p>
+  </div>
+  {% if current_user.has_edit() %}
+  <a href="{{ url_for('msds.new') }}" class="btn btn-primary">＋ MSDS 등록</a>
+  {% endif %}
+</div>
+
+<!-- 현황 카드 -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+  {% for label, val, color, sub in [
+      ('등록 화학물질', stats.total, 'var(--primary)', '전체 등록건'),
+      ('사용 중', stats.active, '#16a34a', '현재 취급물질'),
+      ('제한·금지물질', stats.rsl, '#b91c1c', 'RBA/고객 RSL 저촉'),
+      ('MSDS 파일 미비', stats.no_file, '#d97706', '파일 첨부 필요') ] %}
+  <div class="card" style="text-align:center;padding:18px;">
+    <div style="font-size:1.7rem;font-weight:800;color:{{ color }};">{{ val }}</div>
+    <div style="font-size:0.82rem;font-weight:600;color:var(--text-primary);margin-top:2px;">{{ label }}</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">{{ sub }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 검색·필터 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:14px 20px;">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:200px;">
+        <label class="form-label">검색</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="제품명 / 등록번호 / 제조사">
+      </div>
+      <div>
+        <label class="form-label">사용 공정</label>
+        <select name="area" class="form-control">
+          <option value="">전체</option>
+          {% for a in use_areas %}<option value="{{ a }}" {% if area==a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">제한물질</label>
+        <select name="rsl" class="form-control">
+          <option value="">전체</option>
+          <option value="restricted" {% if rsl=='restricted' %}selected{% endif %}>제한물질</option>
+          <option value="prohibited" {% if rsl=='prohibited' %}selected{% endif %}>금지물질</option>
+          <option value="none" {% if rsl=='none' %}selected{% endif %}>해당없음</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 검색</button>
+        <a href="{{ url_for('msds.index') }}" class="btn btn-outline btn-sm">초기화</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">화학물질 관리대장 — 총 <strong>{{ items|length }}</strong>건</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:40px;">NO</th>
+          <th>제품명</th>
+          <th>등록번호</th>
+          <th>등록일자</th>
+          <th style="text-align:center;">원본 제·개정번호</th>
+          <th>원본 제·개정일자</th>
+          <th>작성자(제조사)</th>
+          <th>연락처 (TEL / FAX)</th>
+          <th>사용 공정</th>
+          <th style="text-align:center;">제한물질</th>
+          <th style="text-align:center;">MSDS</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for m in items %}
+      <tr style="cursor:pointer;{% if not m.is_active %}opacity:0.55;{% endif %}" onclick="location.href='{{ url_for('msds.detail', msds_id=m.id) }}'">
+        <td style="text-align:center;color:var(--text-muted);">{{ loop.index }}</td>
+        <td style="font-weight:600;max-width:200px;">{{ m.product_name }}
+          {% if not m.is_active %}<span class="status-badge status-draft" style="margin-left:4px;">사용중지</span>{% endif %}
+        </td>
+        <td style="font-family:monospace;font-size:0.78rem;color:var(--accent);font-weight:700;">{{ m.reg_number }}</td>
+        <td class="date-cell">{{ m.reg_date or '-' }}</td>
+        <td style="text-align:center;font-size:0.82rem;">{{ m.src_revision or '-' }}</td>
+        <td class="date-cell">{{ m.src_revision_date or '-' }}</td>
+        <td style="font-size:0.82rem;">{{ m.manufacturer or '-' }}</td>
+        <td style="font-size:0.76rem;color:var(--text-secondary);white-space:nowrap;">
+          {{ m.tel or '-' }}<br>{{ m.fax or '-' }}
+        </td>
+        <td style="font-size:0.76rem;color:var(--text-secondary);max-width:200px;">{{ m.use_areas or '-' }}</td>
+        <td style="text-align:center;">
+          {% if m.rsl_status == 'prohibited' %}<span class="status-badge status-obsolete">금지</span>
+          {% elif m.rsl_status == 'restricted' %}<span class="status-badge status-review">제한</span>
+          {% else %}<span style="color:var(--text-muted);font-size:0.78rem;">-</span>{% endif %}
+        </td>
+        <td style="text-align:center;">
+          {% if m.file_path %}<span title="{{ m.file_name }}">📄</span>
+          {% else %}<span style="color:#d97706;font-size:0.72rem;" title="MSDS 파일 미등록">미비</span>{% endif %}
+        </td>
+        <td onclick="event.stopPropagation();" style="white-space:nowrap;">
+          <a href="{{ url_for('msds.detail', msds_id=m.id) }}" class="btn btn-outline btn-sm">상세</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="12" class="empty-cell">🧪 등록된 화학물질이 없습니다.
+        {% if current_user.has_edit() %}<br><a href="{{ url_for('msds.new') }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ MSDS 등록하기</a>{% endif %}
+      </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top:14px;font-size:0.76rem;color:var(--text-muted);line-height:1.6;">
+  ※ MSDS는 작업장 내 근로자가 쉽게 열람할 수 있는 장소에 비치해야 하며(절차서 4.1), 신규 화학물질 도입 시 유해성·위험성을 사전 검토하여 위험성평가(NV-P-040)에 반영합니다.
+</div>
+{% endblock %}

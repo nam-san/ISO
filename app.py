@@ -25,9 +25,8 @@ def create_app():
     login_manager.login_message = '로그인이 필요한 페이지입니다.'
     login_manager.login_message_category = 'warning'
 
-    # 업로드 폴더 및 DB(instance) 폴더 생성 (신규 서버 배포 시 폴더가 없어 발생하는 오류 방지)
+    # 업로드 폴더 생성
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'), exist_ok=True)
 
     # 블루프린트 등록
     from routes.auth import auth_bp
@@ -47,6 +46,7 @@ def create_app():
     from routes.org import org_bp
     from routes.improvement import improvement_bp
     from routes.meeting import meeting_bp
+    from routes.msds import msds_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -65,6 +65,7 @@ def create_app():
     app.register_blueprint(org_bp, url_prefix='/org')
     app.register_blueprint(improvement_bp, url_prefix='/hse/improvement')
     app.register_blueprint(meeting_bp, url_prefix='/meeting')
+    app.register_blueprint(msds_bp, url_prefix='/msds')
 
     # 전역 템플릿 변수 주입
     @app.context_processor
@@ -106,6 +107,8 @@ def _bootstrap_database():
     seed_org_charts()
     from routes.meeting import seed_meeting_types
     seed_meeting_types()
+    from routes.msds import seed_msds
+    seed_msds()
 
 
 @login_manager.user_loader

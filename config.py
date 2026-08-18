@@ -2,10 +2,9 @@ import os
 import secrets
 from dotenv import load_dotenv
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+load_dotenv()
 
-# .env를 프로젝트 폴더 기준으로 로드 (실행 위치가 달라도 안전 — 서버 배포 대응)
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def _require_secret_key():

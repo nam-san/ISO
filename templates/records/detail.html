@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}{{ rec.record_number }} 상세{% endblock %}
+{% block breadcrumb %}📋 기록문서 관리 › {{ rec.record_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ rec.title }}
+      {% if rec.status == 'disposed' %}<span class="status-badge status-obsolete" style="font-size:0.8rem;">폐기</span>
+      {% else %}<span class="status-badge status-active" style="font-size:0.8rem;">보존중</span>{% endif %}
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ rec.record_number }} · {{ rec.record_type or '-' }} · 기록일 {{ rec.record_date or '-' }}</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if rec.status == 'active' and current_user.has_edit() and (current_user.is_admin() or rec.created_by_id == current_user.id) %}
+    <a href="{{ url_for('records.edit', rid=rec.id) }}" class="btn btn-primary">✏️ 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or (rec.created_by_id == current_user.id and rec.status == 'active') %}
+    <form method="POST" action="{{ url_for('records.delete', rid=rec.id) }}" style="display:inline;"
+          onsubmit="return confirm('실행기록을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('records.index') }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+{% if rec.disposal_date and rec.status == 'active' %}
+  {% set dday = (rec.disposal_date - today).days %}
+  {% if dday < 0 %}
+  <div class="info-box" style="background:#fee2e2;border:1px solid #ef4444;color:#991b1b;padding:13px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:0.86rem;">
+    ⚠️ <strong>보존연한이 경과했습니다.</strong> (폐기예정일 {{ rec.disposal_date }} · {{ -dday }}일 초과) — 폐기 처리를 검토하세요.
+  </div>
+  {% elif dday <= 30 %}
+  <div class="info-box" style="background:#fef9c3;border:1px solid #eab308;color:#854d0e;padding:13px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:0.86rem;">
+    ⏳ <strong>폐기 예정일이 임박했습니다.</strong> ({{ rec.disposal_date }} · D-{{ dday }})
+  </div>
+  {% endif %}
+{% endif %}
+
+<!-- 좌: 기록 본문 / 우: 정보 -->
+<div class="doc-detail-grid" data-wide="0" style="display:grid;grid-template-columns:minmax(0,3.2fr) minmax(280px,1fr);gap:16px;align-items:start;">
+
+  <!-- ══════ 좌측: 기록 본문(첨부 미리보기) ══════ -->
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>📄 기록 본문</span>
+        {% if file_url and rec.file_name and rec.file_name.lower().endswith('.pdf') %}
+        <span style="display:flex;gap:6px;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="toggleWide()" id="wideBtn" title="본문 영역 넓게 보기">↔️ 넓게 보기</button>
+          <a href="{{ file_url }}" target="_blank" class="btn btn-outline btn-sm" title="새 창에서 크게 보기">🔍 새 창</a>
+        </span>
+        {% endif %}
+      </div>
+
+      {% set fname = (rec.file_name or '')|lower %}
+      {% if file_url and fname.endswith('.pdf') %}
+      <!-- PDF 미리보기 -->
+      <div class="card-body" style="padding:0;height:calc(100vh - 260px);min-height:560px;overflow:hidden;">
+        <iframe src="{{ file_url }}#pagemode=none&view=FitH&zoom=page-width"
+                style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+      {% elif file_url and (fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.jpeg') or fname.endswith('.gif')) %}
+      <!-- 이미지 미리보기 -->
+      <div class="card-body" style="text-align:center;background:var(--bg-base);">
+        <img src="{{ file_url }}" class="zoomable" alt="{{ rec.title }}"
+             style="max-width:100%;max-height:70vh;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:zoom-in;">
+        <p style="font-size:0.76rem;color:var(--text-muted);margin-top:10px;">클릭하면 확대됩니다.</p>
+      </div>
+      {% elif file_url %}
+      <!-- 미리보기 미지원 형식 -->
+      <div class="card-body" style="text-align:center;padding:50px 24px;">
+        <div style="font-size:3rem;margin-bottom:12px;">📎</div>
+        <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:8px;">{{ rec.file_name }}</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;">
+          PDF·이미지가 아닌 형식은 미리보기가 지원되지 않습니다. 다운로드하여 확인하세요.
+        </p>
+        <a href="{{ url_for('records.download', rid=rec.id) }}" class="btn btn-primary">⬇️ 파일 다운로드</a>
+      </div>
+      {% else %}
+      <div class="card-body" style="text-align:center;padding:50px 24px;color:var(--text-muted);">
+        <div style="font-size:3rem;margin-bottom:12px;">📄</div>
+        <p style="font-size:0.88rem;">첨부된 기록 파일이 없습니다.</p>
+        {% if rec.status == 'active' and current_user.has_edit() and (current_user.is_admin() or rec.created_by_id == current_user.id) %}
+        <a href="{{ url_for('records.edit', rid=rec.id) }}" class="btn btn-outline btn-sm" style="margin-top:12px;">✏️ 파일 첨부하기</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 기록 내용(텍스트) -->
+    {% if rec.content %}
+    <div class="card">
+      <div class="card-header">📝 기록 내용</div>
+      <div class="card-body" style="font-size:0.9rem;white-space:pre-line;line-height:1.7;">{{ rec.content }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ══════ 우측: 기록 정보 ══════ -->
+  <div id="docSidePanel">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📋 기록 기본 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(label, value) %}
+          <tr>
+            <td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">{{ label }}</td>
+            <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);word-break:break-word;">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('기록번호', rec.record_number) }}
+          {{ row('기록명', rec.title) }}
+          {{ row('기록유형', rec.record_type or '-') }}
+          <tr>
+            <td style="padding:6px 0;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">ISO 규격</td>
+            <td style="padding:6px 0;border-bottom:1px solid var(--border-light);">
+              {% if rec.iso_standard == 'ISO9001' %}<span class="iso-chip iso-q">9001</span>
+              {% elif rec.iso_standard == 'ISO14001' %}<span class="iso-chip iso-e">14001</span>
+              {% elif rec.iso_standard == 'ISO45001' %}<span class="iso-chip iso-s">45001</span>
+              {% elif rec.iso_standard %}<span class="iso-chip">{{ rec.iso_standard }}</span>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+          {{ row('소관부서', rec.department.name if rec.department else '-') }}
+          {{ row('기록일', rec.record_date or '-') }}
+          {{ row('작성자', rec.created_by.name if rec.created_by else '-') }}
+          {{ row('등록일', rec.created_at.strftime('%Y-%m-%d') if rec.created_at else '-') }}
+          <tr>
+            <td style="padding:6px 0;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">근거 문서</td>
+            <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);">
+              {% if related_doc %}
+              <a href="{{ url_for('documents.detail', doc_id=related_doc.id) }}" style="color:var(--accent);font-weight:600;">{{ related_doc.doc_number }} {{ related_doc.title }}</a>
+              {% else %}<span style="color:var(--text-muted);">-</span>{% endif %}
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- 보존 관리 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">🗄️ 보존 관리</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:6px 0;width:88px;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">보존연한</td>
+            <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);">{{ rec.retention_years or '-' }}년</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:0.76rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">폐기예정일</td>
+            <td style="padding:6px 0;font-size:0.82rem;border-bottom:1px solid var(--border-light);">{{ rec.disposal_date or '-' }}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:0.76rem;font-weight:600;color:var(--text-secondary);">상태</td>
+            <td style="padding:6px 0;">
+              {% if rec.status == 'disposed' %}<span class="status-badge status-obsolete">폐기</span>
+              {% else %}<span class="status-badge status-active">보존중</span>{% endif %}
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- 첨부파일 -->
+    {% if file_url %}
+    <div class="card">
+      <div class="card-header">📎 첨부파일</div>
+      <div class="card-body">
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;word-break:break-all;">{{ rec.file_name }}</p>
+        <a href="{{ url_for('records.download', rid=rec.id) }}" class="btn btn-outline" style="width:100%;text-align:center;">⬇️ 파일 다운로드</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// 본문 넓게 보기 — 우측 정보 패널을 접어 미리보기 영역을 최대폭으로
+function toggleWide() {
+  const grid = document.querySelector('.doc-detail-grid');
+  const side = document.getElementById('docSidePanel');
+  const btn = document.getElementById('wideBtn');
+  const wide = grid.dataset.wide === '1';
+  if (wide) {
+    grid.style.gridTemplateColumns = 'minmax(0,3.2fr) minmax(280px,1fr)';
+    side.style.display = '';
+    btn.textContent = '↔️ 넓게 보기';
+    grid.dataset.wide = '0';
+  } else {
+    grid.style.gridTemplateColumns = '1fr';
+    side.style.display = 'none';
+    btn.textContent = '↩️ 정보 보기';
+    grid.dataset.wide = '1';
+  }
+}
+</script>
+{% endblock %}

@@ -162,11 +162,28 @@ class Document(db.Model):
     
     # 내용 (간략 설명)
     description = db.Column(db.Text)
-    
+
+    # ── 번호체계·개정 관리 (문서관리절차서 NV-P-001 기준) ──
+    enactment_date = db.Column(db.Date)                  # 제정일자
+    revision_no = db.Column(db.Integer, default=0)       # 개정번호 (직접 입력)
+    guide_code = db.Column(db.String(10))                # 지침서 약호(II/PI/OI/WC/WI)
+    is_dept_doc = db.Column(db.Boolean, default=False)   # 부서 전용문서 여부
+    dept_code = db.Column(db.String(20))                 # 부서 약호(표2)
+    part_code = db.Column(db.String(20))                 # 파트 약호(표2)
+    related_procedure_id = db.Column(db.Integer, db.ForeignKey('documents.id'))  # 서식↔절차서 연계 (필수)
+    related_guide_id = db.Column(db.Integer, db.ForeignKey('documents.id'))      # 서식↔지침서 연계 (선택)
+    supersedes_id = db.Column(db.Integer, db.ForeignKey('documents.id'))         # 개정본이 대체하는 구버전
+
     # 관계
     created_by = db.relationship('User', foreign_keys=[created_by_id])
     approved_by = db.relationship('User', foreign_keys=[approved_by_id])
     department = db.relationship('Department', backref='documents')
+    related_procedure = db.relationship('Document', foreign_keys=[related_procedure_id],
+                                        remote_side=[id], backref='related_forms')
+    related_guide = db.relationship('Document', foreign_keys=[related_guide_id],
+                                    remote_side=[id], backref='guide_forms')
+    supersedes = db.relationship('Document', foreign_keys=[supersedes_id], remote_side=[id],
+                                 backref=db.backref('revised_child', uselist=False))
     versions = db.relationship('DocumentVersion', backref='document', lazy='dynamic')
     approvals = db.relationship('Approval', backref='document', lazy='dynamic')
 
@@ -750,9 +767,88 @@ class DesignChange(db.Model):
     file_path = db.Column(db.String(500))
     file_name = db.Column(db.String(200))
 
+    # ── 4M 변경 관리 (NV-P-038 / 신고서 P-038-1) ──
+    product_no = db.Column(db.String(100))               # 제품번호
+    m4_man = db.Column(db.Boolean, default=False)        # 사람(Man)
+    m4_machine = db.Column(db.Boolean, default=False)    # 기계(Machine)
+    m4_material = db.Column(db.Boolean, default=False)   # 재료(Material)
+    m4_method = db.Column(db.Boolean, default=False)     # 방법(Method)
+    m4_etc = db.Column(db.String(100))                   # 기타(내용)
+    criteria_key = db.Column(db.String(50))              # 4M 신고 기준표 항목 코드
+
+    # 변경 일정
+    sample_date = db.Column(db.Date)                     # 검토용 Sample 제출일
+    stock_qty = db.Column(db.String(50))                 # 재고수량
+    schedule_note = db.Column(db.Text)                   # 기타(일정 비고)
+
+    # 관련 서류 — 표준문서 제/개정 및 시험결과 (Y/N)
+    doc_inspection = db.Column(db.Boolean, default=False)   # 검사기준서
+    doc_process = db.Column(db.Boolean, default=False)      # 공정도
+    doc_drawing = db.Column(db.Boolean, default=False)      # 도면/시방서
+    doc_control = db.Column(db.Boolean, default=False)      # 관리계획서
+    doc_workstd = db.Column(db.Boolean, default=False)      # 작업표준서
+    doc_list = db.Column(db.Text)                           # 표준서 No/제목 목록
+    test_report = db.Column(db.Boolean, default=False)      # 검사성적서
+    test_reliability = db.Column(db.Boolean, default=False) # 신뢰성시험결과
+    test_ecn = db.Column(db.Boolean, default=False)         # ECN
+    test_risk = db.Column(db.Boolean, default=False)        # RISK 파악
+    test_none = db.Column(db.Boolean, default=False)        # 해당없음
+
+    # ── 품질관리팀 검토 및 승인 ──
+    qa_receipt_date = db.Column(db.Date)                 # 접수일자
+    qa_receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    qa_eval_needed = db.Column(db.String(20))            # 승인평가: 필요/불필요
+    qa_eval_reason = db.Column(db.String(300))           # 불필요 사유
+    qa_eval_items = db.Column(db.Text)                   # 제품평가 10항목 JSON
+    qa_review_date = db.Column(db.Date)                  # 검토일자
+    qa_reviewer_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    qa_result = db.Column(db.String(20))                 # 합격/불합격
+    qa_reject_reason = db.Column(db.String(300))         # 불합격 사유
+
+    # ── 고객사 승인 ──
+    customer_target = db.Column(db.String(20))           # 대상/비대상
+    customer_reason = db.Column(db.String(300))          # 비대상 사유
+    customer_name = db.Column(db.String(120))            # 고객사명
+    customer_approve_date = db.Column(db.Date)           # 고객사 승인일
+
+    distribution = db.Column(db.String(300))             # 배포처
+
     requester = db.relationship('User', foreign_keys=[requester_id])
     approver = db.relationship('User', foreign_keys=[approver_id])
+    qa_receiver = db.relationship('User', foreign_keys=[qa_receiver_id])
+    qa_reviewer = db.relationship('User', foreign_keys=[qa_reviewer_id])
     department = db.relationship('Department')
+    reviews = db.relationship('ChangeReview', backref='change',
+                              lazy='dynamic', cascade='all, delete-orphan')
+    attachments = db.relationship('ChangeAttachment', backref='change',
+                                  lazy='dynamic', cascade='all, delete-orphan')
+
+
+class ChangeReview(db.Model):
+    """관계부서 검토 의견 (개발·제조·구매·자재·영업) — 절차서 5.2"""
+    __tablename__ = 'change_reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    change_id = db.Column(db.Integer, db.ForeignKey('design_changes.id'), nullable=False)
+    dept_label = db.Column(db.String(30))                # 개발/제조/구매/자재/영업
+    reviewer_name = db.Column(db.String(50))             # 담당자
+    opinion = db.Column(db.Text)                         # 검토의견
+    signed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))   # 서명(전자)
+    signed_at = db.Column(db.DateTime)
+    signed_by = db.relationship('User')
+
+
+class ChangeAttachment(db.Model):
+    """4M 변경 첨부 — 변경 전/후 사진, 관련 자료"""
+    __tablename__ = 'change_attachments'
+    id = db.Column(db.Integer, primary_key=True)
+    change_id = db.Column(db.Integer, db.ForeignKey('design_changes.id'), nullable=False)
+    slot = db.Column(db.String(20), default='etc')       # before / after / etc
+    file_path = db.Column(db.String(500))
+    file_name = db.Column(db.String(200))
+    is_image = db.Column(db.Boolean, default=False)
+    caption = db.Column(db.String(200))
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # ============================================================
@@ -1085,6 +1181,56 @@ class MeetingRecordAttachment(db.Model):
     is_image = db.Column(db.Boolean, default=False)
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ============================================================
+# MSDS 등록부 (화학물질 관리대장) — NV-P-045 화학물질 및 산업보건관리 절차서
+# ============================================================
+class MSDS(db.Model):
+    __tablename__ = 'msds'
+    id = db.Column(db.Integer, primary_key=True)
+    reg_number = db.Column(db.String(30))                 # 등록번호 NV-MSDS-000
+    product_name = db.Column(db.String(200), nullable=False)   # 제품명
+    reg_date = db.Column(db.Date)                         # 등록일자
+
+    # ── 원본(MSDS) 정보 ──
+    src_revision = db.Column(db.String(20))               # 원본 제·개정번호
+    src_revision_date = db.Column(db.Date)                # 원본 제·개정일자
+    manufacturer = db.Column(db.String(120))              # 작성자(제조사/공급사)
+    tel = db.Column(db.String(50))
+    fax = db.Column(db.String(50))
+
+    # ── 사용/보관 (절차서 4.1·4.3) ──
+    use_areas = db.Column(db.String(300))                 # 사용 공정·장소 (쉼표 구분)
+    storage_place = db.Column(db.String(120))             # 보관 장소
+    ghs_class = db.Column(db.String(200))                 # GHS 유해성 분류
+    needs_lev = db.Column(db.Boolean, default=False)      # 국소배기장치 필요
+    protective_gear = db.Column(db.String(200))           # 필요 보호구
+
+    # ── 소분용기 GHS 경고표지(라벨) 항목 — 산안법 제115조 ──
+    ghs_pictograms = db.Column(db.String(200))            # 그림문자 코드 (쉼표구분)
+    signal_word = db.Column(db.String(20))                # 신호어: 위험 / 경고
+    hazard_statements = db.Column(db.Text)                # 유해·위험 문구 (H)
+    precaution_statements = db.Column(db.Text)            # 예방조치 문구 (P)
+    supplier_info = db.Column(db.String(300))             # 공급자 정보(미입력 시 제조사·연락처 사용)
+
+    # ── RBA/고객 제한·금지물질 (절차서 4.2) ──
+    rsl_status = db.Column(db.String(20), default='none')
+    # none: 해당없음 / restricted: 제한물질 / prohibited: 금지물질
+    rsl_note = db.Column(db.String(300))                  # 제한·금지 근거/대체검토
+
+    note = db.Column(db.Text)                             # 비고
+    is_active = db.Column(db.Boolean, default=True)       # 사용중 여부(폐지 시 False)
+
+    file_path = db.Column(db.String(500))                 # MSDS 파일
+    file_name = db.Column(db.String(200))
+
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    department = db.relationship('Department')
+    created_by = db.relationship('User')
 
 
 # ============================================================

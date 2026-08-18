@@ -86,7 +86,7 @@
           <th>버전</th>
           <th>소관부서</th>
           <th>상태</th>
-          <th>시행일</th>
+          <th>개정일</th>
           <th>등록일</th>
         </tr>
       </thead>
@@ -107,7 +107,7 @@
             <span class="iso-chip" style="background:#f1f5f9;color:#475569;border-color:#cbd5e1;">{{ doc.iso_standard }}</span>
           {% endif %}
         </td>
-        <td>v{{ doc.version }}</td>
+        <td>{{ doc.version }}</td>
         <td>{{ doc.department.name if doc.department else '-' }}</td>
         <td>
           <span class="status-badge status-{{ doc.status }}">

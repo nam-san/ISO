@@ -45,17 +45,34 @@
     </div>
 
     <div class="nav-section-label">문서 관리</div>
-    <a href="{{ url_for('documents.index') }}" class="nav-item {% if 'documents' in request.endpoint %}active{% endif %}">
-      <span class="nav-icon">📁</span>
-      <span class="nav-text">기준문서 관리</span>
-      <span class="nav-badge iso-q">9001</span>
+    {% if current_user.has_edit() %}
+    <a href="{{ url_for('documents.new') }}" class="nav-item {% if request.endpoint == 'documents.new' %}active{% endif %}">
+      <span class="nav-icon">📝</span>
+      <span class="nav-text">기준문서 등록</span>
+    </a>
+    {% endif %}
+    <a href="{{ url_for('documents.category', cat='manual_proc') }}" class="nav-item {% if request.view_args and request.view_args.get('cat') == 'manual_proc' %}active{% endif %}">
+      <span class="nav-icon">📘</span>
+      <span class="nav-text">매뉴얼·절차서</span>
+    </a>
+    <a href="{{ url_for('documents.category', cat='guide') }}" class="nav-item {% if request.view_args and request.view_args.get('cat') == 'guide' %}active{% endif %}">
+      <span class="nav-icon">📗</span>
+      <span class="nav-text">지침서·지도서</span>
+    </a>
+    <a href="{{ url_for('documents.category', cat='form') }}" class="nav-item {% if request.view_args and request.view_args.get('cat') == 'form' %}active{% endif %}">
+      <span class="nav-icon">📄</span>
+      <span class="nav-text">서식</span>
+    </a>
+    <a href="{{ url_for('documents.obsolete') }}" class="nav-item {% if request.endpoint == 'documents.obsolete' %}active{% endif %}">
+      <span class="nav-icon">🗄️</span>
+      <span class="nav-text">구버전 관리</span>
     </a>
 
     {% set records_active = 'records' in request.endpoint %}
     <div class="nav-group {% if records_active %}open{% endif %}" id="navGroupRecords">
       <div class="nav-group-toggle {% if records_active %}active{% endif %}" onclick="toggleNavGroup('navGroupRecords')">
         <span class="nav-icon">📋</span>
-        <span class="nav-text">실행기록 관리</span>
+        <span class="nav-text">기록문서 관리</span>
         <span class="nav-group-arrow">▼</span>
       </div>
       <div class="nav-submenu">
@@ -74,7 +91,6 @@
     <a href="{{ url_for('review.index') }}" class="nav-item {% if 'review' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">📋</span>
       <span class="nav-text">경영검토</span>
-      <span class="nav-badge iso-q" style="font-size:0.55rem;">9.3</span>
     </a>
 
     <div class="nav-section-label">심사 관리</div>
@@ -91,16 +107,18 @@
     <a href="{{ url_for('hse.environmental') }}" class="nav-item {% if 'environmental' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🌿</span>
       <span class="nav-text">환경측면 평가</span>
-      <span class="nav-badge iso-e">14001</span>
     </a>
     <a href="{{ url_for('hse.risk') }}" class="nav-item {% if request.endpoint == 'hse.risk' %}active{% endif %}">
       <span class="nav-icon">⛑️</span>
       <span class="nav-text">위험성 평가</span>
-      <span class="nav-badge iso-s">45001</span>
     </a>
     <a href="{{ url_for('improvement.index') }}" class="nav-item {% if 'improvement' in request.endpoint %}active{% endif %}" style="padding-left:34px;">
       <span class="nav-icon">🛠️</span>
       <span class="nav-text">개선조치</span>
+    </a>
+    <a href="{{ url_for('msds.index') }}" class="nav-item {% if 'msds' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🧪</span>
+      <span class="nav-text">MSDS 관리</span>
     </a>
     <a href="{{ url_for('hse.legal') }}" class="nav-item {% if 'legal' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">⚖️</span>
@@ -119,12 +137,10 @@
     <a href="{{ url_for('complaint.index') }}" class="nav-item {% if 'complaint' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">📞</span>
       <span class="nav-text">고객 클레임</span>
-      <span class="nav-badge iso-q">9001</span>
     </a>
     <a href="{{ url_for('design.index') }}" class="nav-item {% if 'design' in request.endpoint %}active{% endif %}">
-      <span class="nav-icon">🔬</span>
-      <span class="nav-text">설계변경 관리</span>
-      <span class="nav-badge iso-q">9001</span>
+      <span class="nav-icon">🔄</span>
+      <span class="nav-text">변경 관리</span>
     </a>
     <a href="{{ url_for('grievance.index') }}" class="nav-item {% if 'grievance' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🗣️</span>
@@ -139,7 +155,6 @@
     <a href="{{ url_for('rba.index') }}" class="nav-item {% if 'rba' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🛡️</span>
       <span class="nav-text">자가진단 체크시트</span>
-      <span class="nav-badge iso-e">EHS</span>
     </a>
 
     {% if current_user.is_admin() %}

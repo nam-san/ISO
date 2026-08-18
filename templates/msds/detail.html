@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% import 'msds/_ghs_svg.html' as ghs %}
+{% block title %}{{ m.reg_number }} {{ m.product_name }}{% endblock %}
+{% block breadcrumb %}🌿 환경·안전 › MSDS 등록부 › {{ m.reg_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ m.product_name }}
+      {% if m.rsl_status == 'prohibited' %}<span class="status-badge status-obsolete" style="font-size:0.8rem;">금지물질</span>
+      {% elif m.rsl_status == 'restricted' %}<span class="status-badge status-review" style="font-size:0.8rem;">제한물질</span>{% endif %}
+      {% if not m.is_active %}<span class="status-badge status-draft" style="font-size:0.8rem;">사용중지</span>{% endif %}
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ m.reg_number }} · 등록일 {{ m.reg_date or '-' }}</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('msds.label', msds_id=m.id) }}" class="btn btn-success" title="소분용기 GHS 경고표지 출력">🏷️ 경고표지 출력</a>
+    {% if current_user.has_edit() %}
+    <a href="{{ url_for('msds.edit', msds_id=m.id) }}" class="btn btn-primary">✏️ 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() or m.created_by_id == current_user.id %}
+    <form method="POST" action="{{ url_for('msds.delete', msds_id=m.id) }}" style="display:inline;"
+          onsubmit="return confirm('MSDS 등록을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('msds.index') }}" class="btn btn-outline">← 등록부</a>
+  </div>
+</div>
+
+{% if m.rsl_status == 'prohibited' %}
+<div class="info-box" style="background:#fee2e2;border:1px solid #ef4444;color:#991b1b;padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:20px;font-size:0.86rem;">
+  ⛔ <strong>금지물질입니다.</strong> 사용을 금지하고 대체물질을 검토해야 합니다. {{ m.rsl_note or '' }}
+</div>
+{% elif m.rsl_status == 'restricted' %}
+<div class="info-box" style="background:#fef9c3;border:1px solid #eab308;color:#854d0e;padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:20px;font-size:0.86rem;">
+  ⚠️ <strong>제한물질입니다.</strong> 사용조건을 준수해야 합니다. {{ m.rsl_note or '' }}
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start;">
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">🧪 화학물질 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(label, value) %}
+          <tr>
+            <td style="padding:8px 0;width:130px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">{{ label }}</td>
+            <td style="padding:8px 0;font-size:0.87rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('등록번호', m.reg_number) }}
+          {{ row('제품명', m.product_name) }}
+          {{ row('등록일자', m.reg_date or '-') }}
+          {{ row('원본 제·개정번호', m.src_revision or '-') }}
+          {{ row('원본 제·개정일자', m.src_revision_date or '-') }}
+          {{ row('작성자(제조사)', m.manufacturer or '-') }}
+          {{ row('연락처', (m.tel or '-') ~ '  /  FAX ' ~ (m.fax or '-')) }}
+          {{ row('소관 부서', m.department.name if m.department else '-') }}
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">⚠️ 유해성 · 취급 · 보관 기준</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row2(label, value) %}
+          <tr>
+            <td style="padding:8px 0;width:130px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">{{ label }}</td>
+            <td style="padding:8px 0;font-size:0.87rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ value }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row2('GHS 유해성 분류', m.ghs_class or '-') }}
+          {{ row2('사용 공정·장소', m.use_areas or '-') }}
+          {{ row2('보관 장소', m.storage_place or '-') }}
+          {{ row2('필요 보호구', m.protective_gear or '-') }}
+          <tr>
+            <td style="padding:8px 0;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">국소배기장치</td>
+            <td style="padding:8px 0;font-size:0.87rem;border-bottom:1px solid var(--border-light);">
+              {% if m.needs_lev %}<span class="status-badge status-review">상시 가동 필요</span>{% else %}<span style="color:var(--text-muted);">해당 없음</span>{% endif %}
+            </td>
+          </tr>
+          {{ row2('RBA·고객 제한물질', rsl_label.get(m.rsl_status, m.rsl_status) ~ (('  —  ' ~ m.rsl_note) if m.rsl_note else '')) }}
+          {% if m.note %}{{ row2('비고', m.note) }}{% endif %}
+        </table>
+
+        <!-- GHS 경고표지 항목 -->
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="font-size:0.82rem;font-weight:700;margin-bottom:10px;">🏷️ 소분용기 경고표지 항목</div>
+          {% if picto or m.signal_word or m.hazard_statements %}
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="padding:8px 0;width:130px;font-size:0.8rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">그림문자</td>
+              <td style="padding:8px 0;border-bottom:1px solid var(--border-light);">
+                {% if picto %}
+                  <div style="display:flex;flex-wrap:wrap;gap:12px;">
+                  {% for p in picto %}
+                  <span style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;font-size:0.75rem;">
+                    {{ ghs.picto(p, '46px') }}{{ pictograms[p][0] }}
+                  </span>
+                  {% endfor %}
+                  </div>
+                {% else %}<span style="color:var(--text-muted);font-size:0.84rem;">없음</span>{% endif %}
+              </td>
+            </tr>
+            {{ row2('신호어', m.signal_word or '없음') }}
+            {{ row2('유해·위험 문구', m.hazard_statements or '-') }}
+            {{ row2('예방조치 문구', m.precaution_statements or '-') }}
+            {{ row2('공급자 정보', m.supplier_info or ((m.manufacturer or '') ~ (' / ' ~ m.tel if m.tel else ''))|trim or '-') }}
+          </table>
+          {% else %}
+          <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:10px 12px;border-radius:var(--radius-sm);font-size:0.8rem;">
+            경고표지 항목이 미입력 상태입니다. 수정에서 그림문자·신호어·문구를 입력하면 완전한 라벨이 출력됩니다.
+          </div>
+          {% endif %}
+          <a href="{{ url_for('msds.label', msds_id=m.id) }}" class="btn btn-outline btn-sm" style="margin-top:10px;">🏷️ 소분용기 라벨 출력 →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📄 MSDS 파일</div>
+      <div class="card-body">
+        {% if file_url %}
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;word-break:break-all;">{{ m.file_name }}</p>
+        <a href="{{ url_for('msds.download', msds_id=m.id) }}" class="btn btn-primary" style="width:100%;text-align:center;">⬇️ MSDS 다운로드</a>
+        {% if m.file_name and m.file_name.lower().endswith('.pdf') %}
+        <a href="{{ file_url }}" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;margin-top:8px;">🔍 새 창에서 열람</a>
+        {% endif %}
+        {% else %}
+        <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px;border-radius:var(--radius-sm);font-size:0.8rem;line-height:1.5;">
+          ⚠️ <strong>MSDS 파일 미등록</strong><br>
+          작업장 내 근로자가 쉽게 열람할 수 있도록 MSDS를 등록·비치해야 합니다. (절차서 4.1)
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📌 취급 시 주의</div>
+      <div class="card-body" style="font-size:0.8rem;color:var(--text-secondary);line-height:1.7;">
+        · 물질별 특성(인화성·부식성·반응성)을 고려해 <strong>분리 보관</strong><br>
+        · 보관용기에 <strong>GHS 경고표지 부착</strong><br>
+        · 누출 대비 <strong>방재용품(흡착포·방제복)</strong> 비치<br>
+        · 신규 도입 시 유해성 검토 후 <strong>위험성평가(NV-P-040)</strong> 반영<br>
+        <span style="display:block;margin-top:8px;font-size:0.74rem;color:var(--text-muted);">
+          작성자: {{ m.created_by.name if m.created_by else '-' }} · 등록 {{ m.created_at.strftime('%Y-%m-%d') if m.created_at else '-' }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
