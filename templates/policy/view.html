@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% set meta = slug_meta[slug] %}
+{% block title %}{{ p.title }}{% endblock %}
+{% block breadcrumb %}📜 방침 관리 › {{ p.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ p.title }} <span>{{ p.subtitle or meta[1] }}</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      개정번호 <strong>Rev.{{ p.revision_no or 0 }}</strong>
+      · 제정·개정일 <strong>{{ p.effective_date.strftime('%Y-%m-%d') if p.effective_date else '-' }}</strong>
+      · 승인 <strong>{{ p.approver_name or '대표이사' }}</strong>
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('policy.print_view', slug=slug) }}" class="btn btn-outline" target="_blank">🖨️ 게시용 출력</a>
+    {% if can_edit %}
+    <a href="{{ url_for('policy.edit', slug=slug) }}" class="btn btn-primary">✏️ 방침 개정</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 방침 전환 탭 -->
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
+  {% for s in slugs %}
+  {% set m = slug_meta[s] %}
+  <a href="{{ url_for('policy.view', slug=s) }}"
+     style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:var(--radius-sm);
+            text-decoration:none;font-size:0.85rem;font-weight:600;border:1px solid {% if s==slug %}{{ m[3] }}{% else %}var(--border){% endif %};
+            background:{% if s==slug %}{{ m[3] }}{% else %}#fff{% endif %};
+            color:{% if s==slug %}#fff{% else %}var(--text-secondary){% endif %};">
+    <span>{{ m[2] }}</span> {{ m[0] }}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- 방침 본문 -->
+<div class="card" style="margin-bottom:18px;overflow:hidden;">
+  <div style="height:6px;background:{{ meta[3] }};"></div>
+  <div class="card-body" style="padding:34px 40px;">
+
+    <div style="text-align:center;margin-bottom:30px;">
+      <div style="font-size:1.7rem;font-weight:800;letter-spacing:0.18em;color:{{ meta[3] }};">
+        {{ p.title }}
+      </div>
+      <div style="font-size:0.76rem;letter-spacing:0.24em;color:var(--text-muted);margin-top:5px;text-transform:uppercase;">
+        {{ p.subtitle or meta[1] }}
+      </div>
+      <div style="width:56px;height:3px;background:{{ meta[3] }};margin:16px auto 0;border-radius:2px;"></div>
+    </div>
+
+    {% if p.intro %}
+    <p style="font-size:0.95rem;line-height:1.95;color:var(--text-primary);margin-bottom:26px;text-align:justify;">
+      {{ p.intro }}
+    </p>
+    {% endif %}
+
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      {% for head, desc in items %}
+      <div style="display:flex;gap:16px;padding:16px 20px;background:{{ meta[4] }}22;
+                  border-left:4px solid {{ meta[3] }};border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
+        <div style="flex:0 0 30px;height:30px;border-radius:50%;background:{{ meta[3] }};color:#fff;
+                    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;">
+          {{ loop.index }}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:1rem;font-weight:700;color:var(--text-primary);line-height:1.6;">{{ head }}</div>
+          {% if desc %}
+          <div style="font-size:0.88rem;color:var(--text-secondary);line-height:1.8;margin-top:5px;">{{ desc }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if p.outro %}
+    <p style="font-size:0.95rem;line-height:1.95;color:var(--text-primary);margin-top:26px;text-align:justify;
+              padding-top:20px;border-top:1px dashed var(--border);">
+      {{ p.outro }}
+    </p>
+    {% endif %}
+
+    <div style="text-align:center;margin-top:36px;padding-top:24px;border-top:1px solid var(--border-light);">
+      <div style="font-size:0.95rem;letter-spacing:0.1em;color:var(--text-secondary);">
+        {{ p.effective_date.strftime('%Y년 %m월 %d일') if p.effective_date else '' }}
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:14px;margin-top:14px;">
+        <span style="font-size:1.15rem;font-weight:800;letter-spacing:0.08em;color:#1a3a5c;">
+          주식회사 누리보이스 &nbsp;{{ p.approver_name or '대표이사' }}
+        </span>
+        <img src="{{ url_for('static', filename='img/company_seal.png') }}" alt="직인"
+             style="width:52px;height:52px;object-fit:contain;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 개정 이력 -->
+<div class="card">
+  <div class="card-header">📑 개정 이력 <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">({{ histories|length }}건)</span></div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:100px;">개정번호</th>
+          <th style="width:120px;">시행일</th>
+          <th>개정 사유</th>
+          <th style="width:120px;">개정자</th>
+          <th style="width:150px;">개정 일시</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background:#f0f9ff;">
+          <td style="font-weight:700;color:{{ meta[3] }};">Rev.{{ p.revision_no or 0 }} <span class="status-badge status-approved">현행</span></td>
+          <td class="date-cell">{{ p.effective_date or '-' }}</td>
+          <td style="font-size:0.85rem;">현재 시행 중인 방침</td>
+          <td style="font-size:0.82rem;">{{ p.updated_by.name if p.updated_by else '-' }}</td>
+          <td class="date-cell">{{ p.updated_at.strftime('%Y-%m-%d %H:%M') if p.updated_at else '-' }}</td>
+        </tr>
+        {% for h in histories %}
+        <tr style="opacity:0.75;">
+          <td style="font-weight:600;">Rev.{{ h.revision_no or 0 }}</td>
+          <td class="date-cell">{{ h.effective_date or '-' }}</td>
+          <td style="font-size:0.85rem;">{{ h.change_reason or '-' }}</td>
+          <td style="font-size:0.82rem;">{{ h.changed_by.name if h.changed_by else '-' }}</td>
+          <td class="date-cell">{{ h.changed_at.strftime('%Y-%m-%d %H:%M') if h.changed_at else '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if not can_edit %}
+<p style="font-size:0.78rem;color:var(--text-muted);margin-top:14px;">
+  🔒 방침 개정은 <strong>시스템 관리자 · 품질팀 · 경영지원팀</strong> 또는 권한관리에서 별도 지정된 사용자만 가능합니다.
+</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,176 @@
+{% set meta = slug_meta[slug] %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>{{ p.title }} — 게시용</title>
+<style>
+  * { box-sizing: border-box; }
+  :root { --k: 1; }            /* 자동 맞춤 배율 (JS가 조정) */
+  body {
+    margin: 0; padding: 20px; background: #e5e7eb;
+    font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif; color: #111;
+  }
+  .toolbar { width: 210mm; margin: 0 auto 14px; display: flex; gap: 8px; justify-content: flex-end; }
+  .toolbar button, .toolbar a {
+    padding: 8px 16px; border-radius: 6px; border: 1px solid #94a3b8; background: #fff;
+    font-size: 13px; cursor: pointer; text-decoration: none; color: #334155; font-family: inherit;
+  }
+  .toolbar button { background: #1a3a5c; color: #fff; border-color: #1a3a5c; }
+
+  /* A4 한 장 고정 — 화면과 인쇄 치수를 동일하게 유지 */
+  .sheet {
+    width: 210mm; height: 297mm; margin: 0 auto; background: #fff;
+    border: 3mm solid {{ meta[3] }}; padding: 0; overflow: hidden;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.14);
+  }
+  .inner {
+    border: 0.5mm solid {{ meta[3] }}55; height: 100%;
+    padding: 11mm 16mm; display: flex; flex-direction: column;
+  }
+
+.flow { flex: 0 0 auto; }
+  .head { text-align: center; margin-bottom: calc(6mm * var(--k)); }
+  .logo { height: calc(13mm * var(--k)); object-fit: contain; }
+  .title {
+    font-size: calc(28pt * var(--k)); font-weight: 900; letter-spacing: 0.18em;
+    color: {{ meta[3] }}; text-align: center; line-height: 1.25;
+  }
+  .subtitle {
+    font-size: calc(9pt * var(--k)); letter-spacing: 0.3em; color: #64748b;
+    text-align: center; margin-top: 2mm; text-transform: uppercase;
+  }
+  .rule {
+    width: 24mm; height: 1mm; background: {{ meta[3] }}; border-radius: 1mm;
+    margin: calc(5mm * var(--k)) auto calc(7mm * var(--k));
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  .intro, .outro {
+    font-size: calc(11pt * var(--k)); line-height: 1.85; text-align: justify; color: #1e293b;
+  }
+  .intro { margin-bottom: calc(6mm * var(--k)); }
+  .outro {
+    margin-top: calc(6mm * var(--k)); padding-top: calc(4mm * var(--k));
+    border-top: 0.2mm dashed #cbd5e1;
+  }
+
+  .item { display: flex; gap: calc(4.5mm * var(--k)); margin-bottom: calc(3.6mm * var(--k)); }
+  .num {
+    flex: 0 0 calc(7.4mm * var(--k)); height: calc(7.4mm * var(--k)); border-radius: 50%;
+    background: {{ meta[3] }}; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(10pt * var(--k)); font-weight: 800;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .item-head { font-size: calc(11.5pt * var(--k)); font-weight: 700; line-height: 1.6; }
+  .item-desc { font-size: calc(10.5pt * var(--k)); color: #334155; line-height: 1.72; margin-top: 1mm; }
+
+  .sign { text-align: center; margin-top: auto; padding-top: calc(7mm * var(--k)); }
+  .sign-date { font-size: calc(11.5pt * var(--k)); letter-spacing: 0.14em; margin-bottom: calc(4.5mm * var(--k)); }
+  .sign-line { display: inline-flex; align-items: center; justify-content: center; gap: 4mm; }
+  .company { font-size: calc(15.5pt * var(--k)); font-weight: 900; letter-spacing: 0.09em; color: #1a3a5c; }
+  .stamp {
+    width: calc(16mm * var(--k)); height: calc(16mm * var(--k)); object-fit: contain;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .foot {
+    margin-top: calc(5mm * var(--k)); padding-top: 2.5mm; border-top: 0.2mm solid #cbd5e1;
+    font-size: calc(7.8pt * var(--k)); color: #64748b; text-align: center; line-height: 1.65;
+  }
+
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    html, body {
+      background: #fff !important; margin: 0 !important; padding: 0 !important;
+      width: 210mm !important;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .toolbar { display: none !important; }
+    .sheet {
+      margin: 0 !important; box-shadow: none !important;
+      page-break-after: avoid; break-after: avoid;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <a href="{{ url_for('policy.view', slug=slug) }}">← 돌아가기</a>
+    <button onclick="window.print()">🖨️ 인쇄</button>
+  </div>
+
+  <div class="sheet">
+    <div class="inner" id="inner">
+      <div class="flow" id="flow">
+      <div class="head">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="누리보이스" class="logo">
+      </div>
+
+      <div class="title">{{ p.title }}</div>
+      <div class="subtitle">{{ p.subtitle or meta[1] }}</div>
+      <div class="rule"></div>
+
+      {% if p.intro %}<div class="intro">{{ p.intro }}</div>{% endif %}
+
+      <div>
+        {% for head, desc in items %}
+        <div class="item">
+          <div class="num">{{ loop.index }}</div>
+          <div>
+            <div class="item-head">{{ head }}</div>
+            {% if desc %}<div class="item-desc">{{ desc }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if p.outro %}<div class="outro">{{ p.outro }}</div>{% endif %}
+      </div><!-- /.flow -->
+
+      <div class="sign" id="sign">
+        <div class="sign-date">{{ p.effective_date.strftime('%Y년 %m월 %d일') if p.effective_date else today.strftime('%Y년 %m월 %d일') }}</div>
+        <div class="sign-line">
+          <span class="company">주식회사 누리보이스 &nbsp;{{ p.approver_name or '대표이사' }}</span>
+          <img src="{{ url_for('static', filename='img/company_seal.png') }}" alt="직인" class="stamp">
+        </div>
+        <div class="foot">
+          문서번호 IMS-POLICY-{{ slug|upper }} · 개정번호 Rev.{{ p.revision_no or 0 }}
+          · 출력일 {{ today.strftime('%Y-%m-%d') }}<br>
+          본 방침은 주식회사 누리보이스 통합경영시스템(IMS)에서 전자적으로 관리되며, 최신본은 IMS 방침 관리에서 확인할 수 있습니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// 방침 분량에 관계없이 A4 한 장에 들어가도록 배율 자동 조정
+function overflowPx() {
+  // 본문(.flow) + 서명부(.sign)의 실제 높이를 .inner 내용영역 높이와 비교
+  var inner = document.getElementById('inner');
+  var flow = document.getElementById('flow');
+  var sign = document.getElementById('sign');
+  var cs = getComputedStyle(inner);
+  var avail = inner.clientHeight
+            - (parseFloat(cs.paddingTop) || 0)
+            - (parseFloat(cs.paddingBottom) || 0);
+  var need = flow.getBoundingClientRect().height + sign.getBoundingClientRect().height;
+  return need - avail;
+}
+function fitToPage() {
+  var root = document.documentElement;
+  var k = 1;
+  root.style.setProperty('--k', k);
+  // 넘치면 2%씩 축소 (최소 65%)
+  var guard = 0;
+  while (overflowPx() > 0 && k > 0.65 && guard++ < 40) {
+    k = Math.round((k - 0.02) * 100) / 100;
+    root.style.setProperty('--k', k);
+  }
+  return k;
+}
+window.addEventListener('load', fitToPage);
+window.addEventListener('beforeprint', fitToPage);
+</script>
+</body>
+</html>

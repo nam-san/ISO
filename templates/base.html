@@ -28,8 +28,24 @@
   </a>
 
   <nav class="sidebar-nav">
-    <div class="nav-section-label">조직</div>
-    {% set org_active = request.endpoint and request.endpoint.startswith('org.') %}
+    <div class="nav-section-label">방침 · 조직</div>
+    {% set pol_active = request.endpoint and request.endpoint.startswith('policy.') %}
+    {% set cur_pol = request.view_args.get('slug') if request.view_args else None %}
+    <div class="nav-group {% if pol_active %}open{% endif %}" id="navGroupPolicy">
+      <div class="nav-group-toggle {% if pol_active %}active{% endif %}" onclick="toggleNavGroup('navGroupPolicy')">
+        <span class="nav-icon">📜</span>
+        <span class="nav-text">방침 관리</span>
+        <span class="nav-group-arrow">▼</span>
+      </div>
+      <div class="nav-submenu">
+        <a href="{{ url_for('policy.view', slug='management') }}" class="nav-sub-item {% if pol_active and cur_pol=='management' %}active{% endif %}"><span>🎯</span> 경영방침</a>
+        <a href="{{ url_for('policy.view', slug='quality') }}" class="nav-sub-item {% if pol_active and cur_pol=='quality' %}active{% endif %}"><span>✅</span> 품질방침</a>
+        <a href="{{ url_for('policy.view', slug='env') }}" class="nav-sub-item {% if pol_active and cur_pol=='env' %}active{% endif %}"><span>🌿</span> 환경방침</a>
+        <a href="{{ url_for('policy.view', slug='safety') }}" class="nav-sub-item {% if pol_active and cur_pol=='safety' %}active{% endif %}"><span>⛑️</span> 안전보건방침</a>
+      </div>
+    </div>
+
+    {% set org_active = request.endpoint and (request.endpoint.startswith('org.') or request.endpoint.startswith('qualification.')) %}
     <div class="nav-group {% if org_active %}open{% endif %}" id="navGroupOrg">
       <div class="nav-group-toggle {% if org_active %}active{% endif %}" onclick="toggleNavGroup('navGroupOrg')">
         <span class="nav-icon">🏢</span>
@@ -37,10 +53,11 @@
         <span class="nav-group-arrow">▼</span>
       </div>
       <div class="nav-submenu">
-        <a href="{{ url_for('org.chart', slug='full') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='full' %}active{% endif %}"><span>🏢</span> 전체 조직도</a>
-        <a href="{{ url_for('org.chart', slug='quality') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='quality' %}active{% endif %}"><span>✅</span> 품질 조직도</a>
-        <a href="{{ url_for('org.chart', slug='env') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='env' %}active{% endif %}"><span>🌿</span> 환경 조직도</a>
-        <a href="{{ url_for('org.chart', slug='safety') }}" class="nav-sub-item {% if org_active and request.view_args.get('slug')=='safety' %}active{% endif %}"><span>⛑️</span> 안전보건 조직도</a>
+        <a href="{{ url_for('org.chart', slug='full') }}" class="nav-sub-item {% if org_active and request.view_args and request.view_args.get('slug')=='full' %}active{% endif %}"><span>🏢</span> 전체 조직도</a>
+        <a href="{{ url_for('org.chart', slug='quality') }}" class="nav-sub-item {% if org_active and request.view_args and request.view_args.get('slug')=='quality' %}active{% endif %}"><span>✅</span> 품질 조직도</a>
+        <a href="{{ url_for('org.chart', slug='env') }}" class="nav-sub-item {% if org_active and request.view_args and request.view_args.get('slug')=='env' %}active{% endif %}"><span>🌿</span> 환경 조직도</a>
+        <a href="{{ url_for('org.chart', slug='safety') }}" class="nav-sub-item {% if org_active and request.view_args and request.view_args.get('slug')=='safety' %}active{% endif %}"><span>⛑️</span> 안전보건 조직도</a>
+        <a href="{{ url_for('qualification.index') }}" class="nav-sub-item {% if request.endpoint and request.endpoint.startswith('qualification.') %}active{% endif %}"><span>🏅</span> 자격인정 관리</a>
       </div>
     </div>
 
@@ -157,9 +174,36 @@
       <span class="nav-text">자가진단 체크시트</span>
     </a>
 
-    {% if current_user.is_admin() %}
+    <div class="nav-section-label">업무시스템 연결</div>
+    {% set work_systems = [
+      ('Confluence',        'https://confluence.nuriflex.co.kr/',  '📘'),
+      ('그룹웨어',            'https://gw.nuriflex.co.kr/login.html', '📨'),
+      ('N-VOICE',           'https://nuri.n-voice.co.kr/',          '📞'),
+      ('제조관리시스템',        'https://fms.nurivoice.com/login',      '🏭'),
+      ('협력사 품질관리 포털',    'https://partner.nurivoice.com/login',  '🤝')
+    ] %}
+    <div class="nav-group open" id="navGroupWork">
+      <div class="nav-group-toggle" onclick="toggleNavGroup('navGroupWork')">
+        <span class="nav-icon">🔗</span>
+        <span class="nav-text">업무시스템 바로가기</span>
+        <span class="nav-group-arrow">▼</span>
+      </div>
+      <div class="nav-submenu">
+        {% for label, href, icon in work_systems %}
+        <a href="{{ href }}" class="nav-sub-item" target="_blank" rel="noopener noreferrer"
+           title="{{ label }} — 새 창으로 열기 ({{ href }})">
+          <span>{{ icon }}</span> {{ label }}
+          <span style="margin-left:auto;font-size:0.68rem;opacity:0.5;">↗</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if current_user.has_user_admin() or current_user.is_admin() %}
     <div class="nav-section-label">시스템 관리</div>
-    <a href="{{ url_for('admin.index') }}" class="nav-item {% if request.endpoint == 'admin.index' or request.endpoint == 'admin.new_user' %}active{% endif %}">
+    {% endif %}
+    {% if current_user.has_user_admin() %}
+    <a href="{{ url_for('admin.index') }}" class="nav-item {% if request.endpoint in ['admin.index','admin.new_user','admin.edit_user'] %}active{% endif %}">
       <span class="nav-icon">👤</span>
       <span class="nav-text">사용자 관리</span>
     </a>
@@ -167,6 +211,8 @@
       <span class="nav-icon">🔐</span>
       <span class="nav-text">권한 관리</span>
     </a>
+    {% endif %}
+    {% if current_user.is_admin() %}
     <a href="{{ url_for('admin.system') }}" class="nav-item {% if request.endpoint == 'admin.system' %}active{% endif %}">
       <span class="nav-icon">⚙️</span>
       <span class="nav-text">시스템 현황</span>

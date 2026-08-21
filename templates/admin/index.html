@@ -6,7 +6,10 @@
 <div class="page-header">
   <div>
     <div class="page-title">사용자 관리</div>
-    <div class="page-subtitle">시스템 사용자 및 부서 권한을 관리합니다.</div>
+    <div class="page-subtitle">시스템 사용자 및 부서 권한을 관리합니다.
+      <span style="color:var(--text-muted);">— <strong>삭제</strong>는 시스템에 남긴 업무 데이터가 없는 계정만 가능하며,
+      기록이 있는 퇴사자는 추적성 유지를 위해 <strong>비활성화</strong>를 사용합니다.</span>
+    </div>
   </div>
   <a href="{{ url_for('admin.new_user') }}" class="btn btn-primary">
     <span>➕ 신규 사용자 등록</span>
@@ -40,7 +43,7 @@
         <th>이메일</th>
         <th>시스템 권한</th>
         <th>상태</th>
-        <th style="width: 100px; text-align: center;">동작</th>
+        <th style="width: 200px; text-align: center;">동작</th>
       </tr>
     </thead>
     <tbody>
@@ -78,10 +81,16 @@
           {% if user.employee_id != 'admin' and user.id != current_user.id %}
           <form action="{{ url_for('admin.toggle_user', user_id=user.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('이 사용자의 계정 상태를 변경하시겠습니까?');">
             {% if user.is_active %}
-            <button type="submit" class="btn btn-sm btn-danger">비활성화</button>
+            <button type="submit" class="btn btn-sm btn-outline" title="계정 사용 중지 (기록은 보존)">비활성화</button>
             {% else %}
-            <button type="submit" class="btn btn-sm btn-success">활성화</button>
+            <button type="submit" class="btn btn-sm btn-success" title="계정 사용 재개">활성화</button>
             {% endif %}
+          </form>
+          <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="POST" style="display:inline;"
+                onsubmit="return confirm('[{{ user.employee_id }}] {{ user.name }} 계정을 완전히 삭제하시겠습니까?
+
+되돌릴 수 없습니다. 시스템에 남긴 업무 데이터가 있으면 삭제되지 않고 비활성화를 안내합니다.');">
+            <button type="submit" class="btn btn-sm btn-danger" title="계정 완전 삭제">🗑️ 삭제</button>
           </form>
           {% endif %}
         </td>

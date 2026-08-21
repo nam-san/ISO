@@ -84,6 +84,8 @@ class User(UserMixin, db.Model):
     is_auditor = db.Column(db.Boolean, default=False)    # 내부심사자 자격
     can_org = db.Column(db.Boolean, default=False)       # 조직도 편집 권한
     can_training = db.Column(db.Boolean, default=False)  # 교육훈련 관리 권한
+    can_policy = db.Column(db.Boolean, default=False)    # 방침 관리(수정) 권한
+    can_user_admin = db.Column(db.Boolean, default=False)  # 사용자·권한 관리 접근 권한
 
     is_active = db.Column(db.Boolean, default=True)
     last_login = db.Column(db.DateTime)
@@ -120,6 +122,16 @@ class User(UserMixin, db.Model):
     def has_training_edit(self):
         """교육훈련 관리 권한: 관리자 + 명시적으로 부여된 교육 담당자만"""
         return self.is_admin() or self.can_training
+
+    def has_user_admin(self):
+        """사용자 관리·권한 관리 접근 권한: 관리자 + 명시적으로 위임된 사용자"""
+        return self.is_admin() or bool(self.can_user_admin)
+
+    def has_policy_edit(self):
+        """방침 관리 권한: 관리자 + 품질팀·경영지원팀 소속 + 명시적으로 부여된 사용자"""
+        if self.is_admin() or self.can_policy:
+            return True
+        return bool(self.department and self.department.code in ('IMS', 'MGT'))
 
     def has_legal_edit(self):
         """법규 준수현황 변경 권한: 관리자 + 내부심사자(is_auditor)만"""
@@ -1231,6 +1243,130 @@ class MSDS(db.Model):
 
     department = db.relationship('Department')
     created_by = db.relationship('User')
+
+
+# ============================================================
+# 자격인정 관리 (NV-P-010 자격의 인정) — 자격 종류 마스터
+# ============================================================
+class QualificationType(db.Model):
+    __tablename__ = 'qualification_types'
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(30))          # 사내 자격인증/법정 선임인력/운전·취급 자격/위원회·직책 지정
+    name = db.Column(db.String(150), nullable=False)   # 자격/선임 명칭
+    procedure_doc = db.Column(db.String(100))    # 관련 절차서(문서번호)
+    clause = db.Column(db.String(100))           # 관련 조항
+    target_job = db.Column(db.String(200))       # 대상 직무/업무
+    requirement = db.Column(db.Text)             # 자격요건·선임기준
+    approver_role = db.Column(db.String(100))    # 승인권자/선임권자
+    legal_basis = db.Column(db.String(200))      # 근거 법령·규격
+    record_form = db.Column(db.String(200))      # 관리 기록(양식)
+    renewal_months = db.Column(db.Integer)       # 갱신주기(개월), 없으면 갱신 불요
+    note = db.Column(db.Text)                    # 비고
+    is_active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    certifications = db.relationship('Qualification', backref='qtype', lazy='dynamic')
+
+
+# ============================================================
+# 자격인정 내역 (개인별 인증)
+# ============================================================
+class Qualification(db.Model):
+    __tablename__ = 'qualifications'
+    id = db.Column(db.Integer, primary_key=True)
+    cert_number = db.Column(db.String(30))       # 인증번호 NV-QC-YYYY-NNN
+    qtype_id = db.Column(db.Integer, db.ForeignKey('qualification_types.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))   # 사내 사용자 연결(선택)
+    person_name = db.Column(db.String(50), nullable=False)       # 대상자 성명
+    employee_no = db.Column(db.String(30))       # 사번
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
+    position = db.Column(db.String(50))          # 직위
+
+    certified_date = db.Column(db.Date)          # 인증일자
+    expire_date = db.Column(db.Date)             # 갱신(만료)일자
+    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # 승인권자
+    approver_name = db.Column(db.String(50))     # 승인권자명(직책 표기용)
+    eval_score = db.Column(db.String(30))        # 적격성 평가점수 등
+    basis_note = db.Column(db.Text)              # 자격인정 근거(이수교육·경력 등)
+    status = db.Column(db.String(20), default='valid')   # valid/expired/revoked
+    issued_at = db.Column(db.DateTime)           # 인증서 최근 발급일시
+    issue_count = db.Column(db.Integer, default=0)
+
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    approver = db.relationship('User', foreign_keys=[approver_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    department = db.relationship('Department')
+    attachments = db.relationship('QualificationAttachment', backref='qualification',
+                                  lazy='dynamic', cascade='all, delete-orphan')
+
+    @property
+    def is_expired(self):
+        from datetime import date as _d
+        return bool(self.expire_date and self.expire_date < _d.today())
+
+    @property
+    def days_left(self):
+        from datetime import date as _d
+        return (self.expire_date - _d.today()).days if self.expire_date else None
+
+
+class QualificationAttachment(db.Model):
+    """자격 증빙자료 (교육수료증·자격증·평가서 등)"""
+    __tablename__ = 'qualification_attachments'
+    id = db.Column(db.Integer, primary_key=True)
+    qualification_id = db.Column(db.Integer, db.ForeignKey('qualifications.id'), nullable=False)
+    file_path = db.Column(db.String(500))
+    file_name = db.Column(db.String(200))
+    is_image = db.Column(db.Boolean, default=False)
+    doc_kind = db.Column(db.String(50))          # 교육수료증/자격증/평가서/기타
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ============================================================
+# 방침 관리 (경영/품질/환경/안전보건 방침)
+# ============================================================
+class Policy(db.Model):
+    __tablename__ = 'policies'
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(20), unique=True, nullable=False)  # management/quality/env/safety
+    title = db.Column(db.String(100), nullable=False)             # 경영방침 등
+    subtitle = db.Column(db.String(200))                          # 영문/부제
+    intro = db.Column(db.Text)                                    # 도입 문단(선언문)
+    body = db.Column(db.Text)                                     # 방침 본문(항목별, 줄 단위)
+    outro = db.Column(db.Text)                                    # 맺음 문단
+    revision_no = db.Column(db.Integer, default=0)                # 개정 차수
+    effective_date = db.Column(db.Date)                           # 제정·개정일
+    approver_name = db.Column(db.String(100))                     # 승인권자(대표이사 등)
+    sort_order = db.Column(db.Integer, default=0)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    updated_by = db.relationship('User')
+    histories = db.relationship('PolicyHistory', backref='policy',
+                                lazy='dynamic', cascade='all, delete-orphan')
+
+
+class PolicyHistory(db.Model):
+    """방침 개정 이력 — 변경 전 내용 보존"""
+    __tablename__ = 'policy_histories'
+    id = db.Column(db.Integer, primary_key=True)
+    policy_id = db.Column(db.Integer, db.ForeignKey('policies.id'), nullable=False)
+    revision_no = db.Column(db.Integer)
+    title = db.Column(db.String(100))
+    intro = db.Column(db.Text)
+    body = db.Column(db.Text)
+    outro = db.Column(db.Text)
+    effective_date = db.Column(db.Date)
+    change_reason = db.Column(db.String(300))
+    changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    changed_by = db.relationship('User')
 
 
 # ============================================================

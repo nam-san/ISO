@@ -47,6 +47,8 @@ def create_app():
     from routes.improvement import improvement_bp
     from routes.meeting import meeting_bp
     from routes.msds import msds_bp
+    from routes.qualification import qualification_bp
+    from routes.policy import policy_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -66,6 +68,8 @@ def create_app():
     app.register_blueprint(improvement_bp, url_prefix='/hse/improvement')
     app.register_blueprint(meeting_bp, url_prefix='/meeting')
     app.register_blueprint(msds_bp, url_prefix='/msds')
+    app.register_blueprint(qualification_bp, url_prefix='/qualification')
+    app.register_blueprint(policy_bp, url_prefix='/policy')
 
     # 전역 템플릿 변수 주입
     @app.context_processor
@@ -109,6 +113,10 @@ def _bootstrap_database():
     seed_meeting_types()
     from routes.msds import seed_msds
     seed_msds()
+    from routes.qualification import seed_qualification_types
+    seed_qualification_types()
+    from routes.policy import seed_policies
+    seed_policies()
 
 
 @login_manager.user_loader

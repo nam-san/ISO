@@ -59,16 +59,23 @@
 
       <div class="form-group">
         <label for="role" class="form-label">시스템 권한 <span class="text-danger">*</span></label>
-        {% if item %}
+        {% set self_edit = item and item.id == current_user.id %}
+        {% if self_edit %}
         <input type="text" class="form-control" value="{{ {'admin':'시스템 관리자','manager':'그룹장/PM/PL','staff':'프로','viewer':'열람 전용'}.get(item.role, item.role) }}" disabled>
-        <p class="text-muted" style="font-size:0.74rem;margin-top:4px;">역할·세부권한은 <a href="{{ url_for('admin.permissions') }}">권한 관리</a>에서 변경하세요.</p>
+        <p class="text-muted" style="font-size:0.74rem;margin-top:4px;">본인 계정의 시스템 권한은 잠금 방지를 위해 변경할 수 없습니다.</p>
         {% else %}
         <select id="role" name="role" class="form-control" required>
-          <option value="staff" selected>프로 (작성자)</option>
-          <option value="manager">그룹장/PM/PL (경영·부서·파트장)</option>
-          <option value="viewer">열람 전용</option>
-          <option value="admin">시스템 관리자</option>
+          <option value="staff" {% if item and item.role == 'staff' %}selected{% elif not item %}selected{% endif %}>프로 (작성자)</option>
+          <option value="manager" {% if item and item.role == 'manager' %}selected{% endif %}>그룹장/PM/PL (경영·부서·파트장)</option>
+          <option value="viewer" {% if item and item.role == 'viewer' %}selected{% endif %}>열람 전용</option>
+          {% if current_user.is_admin() %}
+          <option value="admin" {% if item and item.role == 'admin' %}selected{% endif %}>시스템 관리자</option>
+          {% endif %}
         </select>
+        <p class="text-muted" style="font-size:0.74rem;margin-top:4px;">
+          승진·보직 변경 시 여기서 변경합니다. 결재(작성·검토·승인)와 모듈별 세부 권한은
+          <a href="{{ url_for('admin.permissions') }}">권한 관리</a>에서 설정하세요.
+        </p>
         {% endif %}
       </div>
     </div>

@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}자격인증서 {{ q.cert_number }}{% endblock %}
+{% block breadcrumb %}🏢 조직 › 자격인정 관리 › 자격인증서{% endblock %}
+
+{% block content %}
+<!-- 화면 전용 컨트롤 -->
+<div class="no-print">
+  <div class="page-header">
+    <div>
+      <div class="page-title">자격인증서 <span>{{ q.cert_number }}</span></div>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+        인쇄 대화상자에서 <strong>배경 그래픽 인쇄</strong>를 체크하면 테두리와 로고가 함께 출력됩니다. (A4 세로)
+      </p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="window.print()" class="btn btn-primary">🖨️ 인쇄</button>
+      <a href="{{ url_for('qualification.detail', qid=q.id) }}" class="btn btn-outline">← 상세</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 자격인증서 ══════════ -->
+<div class="cert-sheet">
+  <div class="cert-frame">
+    <div class="cert-inner">
+
+      <!-- 헤더: 로고 -->
+      <div class="cert-head">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="누리보이스" class="cert-logo">
+      </div>
+
+      <!-- 제목 -->
+      <div class="cert-title-wrap">
+        <div class="cert-title">자 격 인 증 서</div>
+        <div class="cert-title-en">CERTIFICATE OF QUALIFICATION</div>
+        <div class="cert-no">인증번호 : {{ q.cert_number }}</div>
+      </div>
+
+      <!-- 대상자 정보 -->
+      <table class="cert-table">
+        <tr>
+          <th>성 명</th>
+          <td class="cert-name">{{ q.person_name }}</td>
+          <th>소 속</th>
+          <td>{{ q.department.name if q.department else '-' }}{% if q.position %} / {{ q.position }}{% endif %}</td>
+        </tr>
+        <tr>
+          <th>사 번</th>
+          <td>{{ q.employee_no or '-' }}</td>
+          <th>자격 구분</th>
+          <td>{{ q.qtype.category if q.qtype else '-' }}</td>
+        </tr>
+      </table>
+
+      <!-- 자격 명칭 -->
+      <div class="cert-qual-box">
+        <div class="cert-qual-label">인증 자격</div>
+        <div class="cert-qual-name">{{ q.qtype.name if q.qtype else '-' }}</div>
+      </div>
+
+      <!-- 본문 -->
+      <div class="cert-body">
+        위 사람은 주식회사 누리보이스<br>
+        <strong>「자격의 인정 절차서({{ q.qtype.procedure_doc if q.qtype else 'NV-P-010' }})」</strong>에서 정한<br>
+        자격요건을 충족하고 소정의 평가를 통과하였으므로<br>
+        위 자격을 보유하였음을 인증합니다.
+      </div>
+
+      <!-- 인증 기간 -->
+      <table class="cert-period">
+        <tr>
+          <th>인증일자</th>
+          <td>{{ q.certified_date.strftime('%Y년 %m월 %d일') if q.certified_date else '-' }}</td>
+          <th>유효기간</th>
+          <td>{% if q.expire_date %}{{ q.expire_date.strftime('%Y년 %m월 %d일') }} 까지{% else %}갱신 불요{% endif %}</td>
+        </tr>
+        {% if q.eval_score %}
+        <tr>
+          <th>평가 결과</th>
+          <td colspan="3">{{ q.eval_score }}</td>
+        </tr>
+        {% endif %}
+      </table>
+
+      <!-- 발행일 -->
+      <div class="cert-issue-date">
+        {{ today.strftime('%Y년 %m월 %d일') }}
+      </div>
+
+      <!-- 서명란 -->
+      <div class="cert-sign">
+        <div class="cert-approver">
+          <span>승인</span><span class="cert-colon">:</span>
+          {%- set a_dept = q.approver.department.name if (q.approver and q.approver.department) else '' -%}
+          {%- set a_name = q.approver.name if q.approver else '' -%}
+          {%- set a_role = q.approver_name or (q.qtype.approver_role if q.qtype else '') -%}
+          <span class="cert-approver-text">
+            {{- (a_dept ~ ' ') if a_dept else '' }}{{ a_role }}{{ (' ' ~ a_name) if a_name else '' -}}
+          </span>
+        </div>
+        <div class="cert-company-line">
+          <span class="cert-company">주식회사 누리보이스</span>
+          <img src="{{ url_for('static', filename='img/company_seal.png') }}" alt="법인인" class="cert-stamp">
+        </div>
+      </div>
+
+      <!-- 하단: 전자발급 안내 -->
+      <div class="cert-foot">
+        본 인증서는 주식회사 누리보이스 통합경영시스템(IMS)에서 <strong>전자적으로 발급</strong>된 문서로,
+        별도의 서명·날인 없이 유효합니다.<br>
+        발급일시 {{ q.issued_at.strftime('%Y-%m-%d %H:%M') if q.issued_at else today.strftime('%Y-%m-%d') }}
+        · 인증번호 {{ q.cert_number }} · 진위확인은 IMS 자격인정 관리에서 조회할 수 있습니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── 자격인증서 (A4 세로) ── */
+.cert-sheet { display:flex; justify-content:center; }
+.cert-frame {
+  width: 210mm; min-height: 290mm;
+  background: #fff;
+  border: 3.5mm solid #1a3a5c;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+  padding: 5mm;
+  box-sizing: border-box;
+}
+.cert-inner {
+  border: 0.6mm solid #0ea5e9;
+  height: 100%;
+  padding: 14mm 16mm;
+  box-sizing: border-box;
+  font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  color: #111;
+  display: flex; flex-direction: column;
+}
+.cert-head { text-align: center; margin-bottom: 6mm; }
+.cert-logo { height: 15mm; object-fit: contain; }
+
+.cert-title-wrap { text-align: center; margin-bottom: 10mm; }
+.cert-title {
+  font-size: 30pt; font-weight: 900; letter-spacing: 0.22em;
+  color: #1a3a5c; line-height: 1.2;
+}
+.cert-title-en {
+  font-size: 9pt; letter-spacing: 0.32em; color: #64748b; margin-top: 2mm;
+}
+.cert-no { font-size: 9.5pt; color: #334155; margin-top: 5mm; }
+
+.cert-table, .cert-period { width: 100%; border-collapse: collapse; margin-bottom: 8mm; }
+.cert-table th, .cert-period th {
+  background: #f1f5f9; border: 0.3mm solid #94a3b8;
+  padding: 3.2mm 4mm; font-size: 10pt; font-weight: 700; color: #334155;
+  width: 24mm; text-align: center; white-space: nowrap;
+}
+.cert-table td, .cert-period td {
+  border: 0.3mm solid #94a3b8; padding: 3.2mm 5mm; font-size: 11pt;
+}
+.cert-name { font-size: 14pt; font-weight: 800; letter-spacing: 0.1em; }
+
+.cert-qual-box {
+  border: 0.6mm solid #1a3a5c; border-radius: 2mm;
+  text-align: center; padding: 6mm 4mm; margin-bottom: 9mm;
+  background: #f8fafc;
+}
+.cert-qual-label { font-size: 9pt; color: #64748b; letter-spacing: 0.2em; margin-bottom: 2.5mm; }
+.cert-qual-name { font-size: 19pt; font-weight: 800; color: #1a3a5c; line-height: 1.35; }
+
+.cert-body {
+  text-align: center; font-size: 11.5pt; line-height: 1.95;
+  margin-bottom: 8mm; color: #1e293b;
+}
+.cert-issue-date {
+  text-align: center; font-size: 12.5pt; letter-spacing: 0.14em;
+  margin: 6mm 0 9mm; color: #111;
+}
+.cert-sign { text-align: center; margin-top: auto; }
+.cert-approver { font-size: 12pt; color: #334155; margin-bottom: 6mm; letter-spacing: 0.02em; }
+.cert-approver-text { font-weight: 700; color: #111; }
+.cert-colon { margin: 0 2.5mm 0 1mm; }
+.cert-company-line {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4mm;
+}
+.cert-company {
+  font-size: 17pt; font-weight: 900; letter-spacing: 0.12em; color: #1a3a5c;
+}
+.cert-stamp {
+  width: 17mm; height: 17mm; object-fit: contain;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.cert-foot {
+  margin-top: 8mm; padding-top: 3mm; border-top: 0.2mm solid #cbd5e1;
+  font-size: 8pt; color: #64748b; text-align: center; line-height: 1.7;
+}
+
+/* ── 인쇄 ── */
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+
+  html, body {
+    background: #fff !important;
+    margin: 0 !important; padding: 0 !important;
+    width: 210mm !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  /* 화면 UI 전부 숨김 */
+  .no-print, .sidebar, .topbar, .breadcrumb, .flash-container,
+  header, nav, footer, .nav-group, #imgLightbox { display: none !important; }
+
+  /* 레이아웃 컨테이너 초기화 — 사이드바 여백(260px)·패딩 제거가 핵심 */
+  .main-wrapper, main.content, .content {
+    margin: 0 !important; padding: 0 !important;
+    width: 210mm !important; max-width: 210mm !important;
+    min-height: auto !important; overflow: visible !important;
+    display: block !important;
+  }
+
+  /* 인증서 본체 — A4 한 장에 정확히 */
+  .cert-sheet { display: block !important; margin: 0 !important; padding: 0 !important; }
+  .cert-frame {
+    width: 210mm !important; height: 297mm !important; min-height: 297mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-width: 3mm !important;
+    page-break-inside: avoid; page-break-after: avoid; break-inside: avoid;
+    overflow: hidden !important;
+  }
+  .cert-inner { height: 100% !important; padding: 10mm 15mm !important; }
+  /* 인쇄 시 세로 간격 압축 — A4 1장 확실 수납 */
+  .cert-head { margin-bottom: 4mm !important; }
+  .cert-title-wrap { margin-bottom: 6mm !important; }
+  .cert-title { font-size: 27pt !important; }
+  .cert-table, .cert-period { margin-bottom: 6mm !important; }
+  .cert-qual-box { padding: 4.5mm 4mm !important; margin-bottom: 6mm !important; }
+  .cert-body { margin-bottom: 4.5mm !important; line-height: 1.72 !important; }
+  .cert-issue-date { margin: 5mm 0 7mm !important; }
+  .cert-approver { margin-bottom: 5mm !important; }
+  .cert-foot { margin-top: 6mm !important; }
+
+  /* 이미지 색상 유지 */
+  .cert-logo, .cert-stamp {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+}
+</style>
+{% endblock %}

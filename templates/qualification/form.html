@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{{ '자격인증 수정' if item else '자격인증 등록' }}{% endblock %}
+{% block breadcrumb %}🏢 조직 › 자격인정 관리 › {{ '수정' if item else '인증 등록' }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">{{ '자격인증 정보 수정' if item else '자격인증 등록' }} <span>{{ next_number }}</span></div>
+  <a href="{{ url_for('qualification.index') }}" class="btn btn-outline">← 현황</a>
+</div>
+
+<div class="card" style="max-width:880px;">
+  <div class="card-header">🏅 자격인증 정보 입력</div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('qualification.edit', qid=item.id) if item else url_for('qualification.new') }}">
+
+      <!-- ① 자격 선택 -->
+      <div style="font-size:0.82rem;font-weight:700;margin-bottom:12px;">① 자격 구분</div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label">자격 / 선임 명칭 <span style="color:var(--danger)">*</span></label>
+        <select name="qtype_id" id="qtypeSel" class="form-control" required onchange="showReq()">
+          <option value="">-- 자격 선택 --</option>
+          {% for t in types %}
+          <option value="{{ t.id }}" data-req="{{ t.requirement or '' }}" data-approver="{{ t.approver_role or '' }}"
+                  data-renew="{{ t.renewal_months or '' }}" data-doc="{{ t.procedure_doc or '' }}"
+                  {% if sel_type == t.id %}selected{% endif %}>[{{ t.category }}] {{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div id="reqBox" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:11px 14px;border-radius:var(--radius-sm);font-size:0.8rem;line-height:1.55;margin-bottom:16px;"></div>
+
+      <!-- ② 대상자 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">② 대상자</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">사내 사용자 선택</label>
+          <select name="user_id" id="userSel" class="form-control" onchange="fillUser()">
+            <option value="">-- 직접 입력 --</option>
+            {% for u in users %}
+            <option value="{{ u.id }}" data-name="{{ u.name }}" data-no="{{ u.employee_id }}"
+                    data-dept="{{ u.department_id or '' }}" data-pos="{{ u.position or '' }}"
+                    {% if item and item.user_id == u.id %}selected{% endif %}>{{ u.name }} ({{ u.department.name if u.department else '-' }})</option>
+            {% endfor %}
+          </select>
+          <p style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;">선택 시 성명·사번·부서가 자동 입력됩니다.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">성명 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="person_name" id="pName" class="form-control" required value="{{ item.person_name if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">사번</label>
+          <input type="text" name="employee_no" id="pNo" class="form-control" value="{{ item.employee_no if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">부서</label>
+          <select name="department_id" id="pDept" class="form-control">
+            <option value="">선택</option>
+            {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">직위</label>
+          <input type="text" name="position" id="pPos" class="form-control" value="{{ item.position if item else '' }}">
+        </div>
+      </div>
+
+      <!-- ③ 인증 정보 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">③ 인증 정보</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">인증일자 <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="certified_date" id="certDate" class="form-control" required
+                 value="{{ item.certified_date if item and item.certified_date else today }}" onchange="calcExpire()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">갱신(만료)일자</label>
+          <input type="date" name="expire_date" id="expDate" class="form-control"
+                 value="{{ item.expire_date if item and item.expire_date else '' }}">
+          <p style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;" id="expHint">갱신주기가 있으면 자동 계산됩니다.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">승인권자 (사내 사용자)</label>
+          <select name="approver_id" class="form-control" id="apprSel">
+            <option value="">-- 선택 --</option>
+            {% for u in users %}<option value="{{ u.id }}" {% if item and item.approver_id == u.id %}selected{% endif %}>{{ u.name }} ({{ u.position or '-' }})</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">승인권자 직책 표기</label>
+          <input type="text" name="approver_name" id="apprName" class="form-control"
+                 placeholder="예: 품질경영팀장" value="{{ item.approver_name if item else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">평가 점수 / 등급</label>
+          <input type="text" name="eval_score" class="form-control" placeholder="예: 적격성평가 85점"
+                 value="{{ item.eval_score if item else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">자격인정 근거 (이수교육·경력 등)</label>
+          <textarea name="basis_note" class="form-control" rows="3"
+                    placeholder="예: 2026.03 내부심사원 양성과정 이수(사외 16H), 당사 경력 3년">{{ item.basis_note if item else '' }}</textarea>
+        </div>
+      </div>
+
+      <!-- ④ 증빙자료 -->
+      <div style="font-size:0.82rem;font-weight:700;margin:18px 0 12px;">④ 증빙자료 첨부</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">자료 구분</label>
+          <select name="doc_kind" class="form-control">
+            {% for k in doc_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">파일 (여러 개 선택 가능)</label>
+          <input type="file" name="attachments" class="form-control" multiple
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.png,.jpg,.jpeg,.gif">
+        </div>
+        {% if item %}
+        {% set atts = item.attachments.all() %}
+        {% if atts %}
+        <div class="form-group form-full">
+          <p style="font-size:0.78rem;color:var(--text-muted);">현재 증빙 {{ atts|length }}건 — 상세 화면에서 확인·삭제할 수 있습니다.</p>
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+        <a href="{{ url_for('qualification.index') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary btn-lg">{{ '✓ 수정 저장' if item else '✓ 자격인증 등록' }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showReq() {
+  const sel = document.getElementById('qtypeSel');
+  const box = document.getElementById('reqBox');
+  const o = sel.options[sel.selectedIndex];
+  if (!sel.value) { box.style.display = 'none'; return; }
+  const req = o.dataset.req, appr = o.dataset.approver, renew = o.dataset.renew, doc = o.dataset.doc;
+  box.innerHTML = '📋 <strong>자격요건</strong> (' + (doc || '-') + ')<br>' + (req || '기준 미등록') +
+    '<br><strong>승인권자:</strong> ' + (appr || '-') +
+    (renew ? ' · <strong>갱신주기:</strong> ' + renew + '개월' : ' · 갱신 불요');
+  box.style.display = 'block';
+  const hint = document.getElementById('expHint');
+  hint.textContent = renew ? ('갱신주기 ' + renew + '개월 — 인증일자 기준 자동 계산됩니다.') : '갱신 불요 자격입니다.';
+  calcExpire();
+}
+function calcExpire() {
+  const sel = document.getElementById('qtypeSel');
+  const o = sel.options[sel.selectedIndex];
+  const renew = o ? parseInt(o.dataset.renew || '0') : 0;
+  const cd = document.getElementById('certDate').value;
+  const exp = document.getElementById('expDate');
+  if (!renew || !cd) return;
+  if (exp.dataset.touched === '1') return;
+  const d = new Date(cd);
+  d.setMonth(d.getMonth() + renew);
+  exp.value = d.toISOString().slice(0, 10);
+}
+document.getElementById('expDate').addEventListener('input', function(){ this.dataset.touched = '1'; });
+function fillUser() {
+  const sel = document.getElementById('userSel');
+  const o = sel.options[sel.selectedIndex];
+  if (!sel.value) return;
+  document.getElementById('pName').value = o.dataset.name || '';
+  document.getElementById('pNo').value = o.dataset.no || '';
+  document.getElementById('pPos').value = o.dataset.pos || '';
+  if (o.dataset.dept) document.getElementById('pDept').value = o.dataset.dept;
+}
+{% if item %}
+document.getElementById('pDept').value = {{ (item.department_id or '')|tojson }};
+{% endif %}
+window.addEventListener('DOMContentLoaded', showReq);
+</script>
+{% endblock %}

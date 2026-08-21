@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}{{ q.cert_number }} {{ q.person_name }}{% endblock %}
+{% block breadcrumb %}🏢 조직 › 자격인정 관리 › {{ q.cert_number }}{% endblock %}
+
+{% block content %}
+{% set col = cat_color.get(q.qtype.category, ('#64748b','#f1f5f9')) if q.qtype else ('#64748b','#f1f5f9') %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ q.person_name }} <span>{{ q.qtype.name if q.qtype else '-' }}</span>
+      {% if q.status == 'valid' %}<span class="status-badge status-approved" style="font-size:0.8rem;">유효</span>
+      {% elif q.status == 'expired' %}<span class="status-badge status-obsolete" style="font-size:0.8rem;">갱신경과</span>
+      {% else %}<span class="status-badge status-draft" style="font-size:0.8rem;">취소</span>{% endif %}
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">{{ q.cert_number }} · 인증일 {{ q.certified_date or '-' }}</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if q.status == 'valid' %}
+    <a href="{{ url_for('qualification.certificate', qid=q.id) }}" class="btn btn-success">🏅 자격인증서 발급</a>
+    {% endif %}
+    {% if current_user.is_admin() %}
+    <a href="{{ url_for('qualification.edit', qid=q.id) }}" class="btn btn-primary">✏️ 수정</a>
+    {% endif %}
+    {% if current_user.is_admin() %}
+    <form method="POST" action="{{ url_for('qualification.delete', qid=q.id) }}" style="display:inline;"
+          onsubmit="return confirm('자격인증 기록을 삭제하시겠습니까? 되돌릴 수 없습니다.');">
+      <button type="submit" class="btn btn-danger">🗑️ 삭제</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('qualification.type_detail', type_id=q.qtype_id) }}" class="btn btn-outline">← 목록</a>
+  </div>
+</div>
+
+{% if q.status == 'expired' %}
+<div class="info-box" style="background:#fee2e2;border:1px solid #ef4444;color:#991b1b;padding:13px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:0.86rem;">
+  ⚠️ <strong>갱신 기한이 경과했습니다.</strong> (만료일 {{ q.expire_date }}) — 갱신 평가 후 자격을 갱신하세요.
+</div>
+{% elif q.status == 'valid' and q.expire_date and (q.expire_date - today).days <= 60 %}
+<div class="info-box" style="background:#fef9c3;border:1px solid #eab308;color:#854d0e;padding:13px 18px;border-radius:var(--radius-sm);margin-bottom:18px;font-size:0.86rem;">
+  ⏳ <strong>갱신 기한이 임박했습니다.</strong> (만료일 {{ q.expire_date }} · D-{{ (q.expire_date - today).days }})
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start;">
+  <div>
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-header">🏅 인증 정보</div>
+      <div class="card-body">
+        <table style="width:100%;border-collapse:collapse;">
+          {% macro row(l, v) %}
+          <tr>
+            <td style="padding:8px 0;width:120px;font-size:0.79rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">{{ l }}</td>
+            <td style="padding:8px 0;font-size:0.86rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ v }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('인증번호', q.cert_number) }}
+          <tr>
+            <td style="padding:8px 0;font-size:0.79rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">자격 구분</td>
+            <td style="padding:8px 0;border-bottom:1px solid var(--border-light);">
+              <span style="background:{{ col[1] }};color:{{ col[0] }};padding:3px 9px;border-radius:10px;font-size:0.74rem;font-weight:700;">{{ q.qtype.category if q.qtype else '-' }}</span>
+              <a href="{{ url_for('qualification.type_detail', type_id=q.qtype_id) }}" style="color:var(--accent);font-size:0.85rem;font-weight:600;margin-left:6px;">{{ q.qtype.name if q.qtype else '-' }}</a>
+            </td>
+          </tr>
+          {{ row('성명 / 사번', q.person_name ~ ((' (' ~ q.employee_no ~ ')') if q.employee_no else '')) }}
+          {{ row('부서 / 직위', (q.department.name if q.department else '-') ~ ((' / ' ~ q.position) if q.position else '')) }}
+          {{ row('인증일자', q.certified_date or '-') }}
+          {{ row('갱신(만료)일자', q.expire_date or '갱신 불요') }}
+          {{ row('승인권자', (q.approver.name if q.approver else '') ~ ((' · ' ~ q.approver_name) if q.approver_name else '') or '-') }}
+          {% if q.eval_score %}{{ row('평가 점수', q.eval_score) }}{% endif %}
+          {{ row('자격인정 근거', q.basis_note or '-') }}
+        </table>
+      </div>
+    </div>
+
+    <!-- 증빙자료 -->
+    <div class="card">
+      <div class="card-header">📎 증빙자료 ({{ atts|length }}건)</div>
+      <div class="card-body">
+        {% if atts %}
+        <div style="display:flex;flex-wrap:wrap;gap:14px;">
+          {% for a in atts %}
+          {% set aurl = url_for('static', filename='uploads/' ~ a.file_path.split('\\')[-1].split('/')[-1]) %}
+          <div style="position:relative;width:132px;">
+            {% if a.is_image %}
+            <img src="{{ aurl }}" class="zoomable" title="{{ a.file_name }}"
+                 style="width:132px;height:132px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;">
+            {% else %}
+            <a href="{{ aurl }}" download style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:132px;height:132px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);color:var(--text-secondary);font-size:0.7rem;text-align:center;padding:8px;">
+              <span style="font-size:1.8rem;">📄</span>
+              <span style="margin-top:6px;word-break:break-all;">{{ a.file_name[:20] }}</span>
+            </a>
+            {% endif %}
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;text-align:center;">
+              <span style="background:var(--bg-base);padding:1px 6px;border-radius:8px;">{{ a.doc_kind or '기타' }}</span>
+            </div>
+            {% if current_user.is_admin() %}
+            <form method="POST" action="{{ url_for('qualification.delete_attachment', att_id=a.id) }}"
+                  onsubmit="return confirm('증빙자료를 삭제하시겠습니까?');" style="position:absolute;top:4px;right:4px;">
+              <button type="submit" style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.8rem;line-height:1;">×</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="font-size:0.84rem;color:var(--text-muted);">
+          등록된 증빙자료가 없습니다. 교육수료증·자격증·적격성평가서 등을 첨부하세요.
+          {% if current_user.is_admin() %}
+          <a href="{{ url_for('qualification.edit', qid=q.id) }}" class="btn btn-outline btn-sm" style="margin-left:8px;">＋ 증빙 추가</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 우측 -->
+  <div>
+    {% if q.qtype %}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">📋 자격 기준</div>
+      <div class="card-body" style="font-size:0.8rem;line-height:1.6;">
+        <div style="font-weight:700;color:var(--text-primary);margin-bottom:5px;">{{ q.qtype.name }}</div>
+        <div style="color:var(--text-secondary);white-space:pre-line;">{{ q.qtype.requirement or '-' }}</div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);color:var(--text-muted);font-size:0.76rem;">
+          근거: {{ q.qtype.procedure_doc or '-' }}{% if q.qtype.clause %} ({{ q.qtype.clause }}){% endif %}<br>
+          승인권자: {{ q.qtype.approver_role or '-' }}<br>
+          {% if q.qtype.renewal_months %}갱신주기: {{ q.qtype.renewal_months }}개월{% else %}갱신 불요{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 갱신 -->
+    {% if current_user.is_admin() and q.status != 'revoked' %}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">🔄 자격 갱신</div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('qualification.renew', qid=q.id) }}">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label">갱신 인증일자</label>
+            <input type="date" name="certified_date" class="form-control" value="{{ today }}">
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">새 만료일 <span style="font-weight:400;color:var(--text-muted);font-size:0.74rem;">(비우면 자동계산)</span></label>
+            <input type="date" name="expire_date" class="form-control">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">🔄 갱신 처리</button>
+        </form>
+        {% if q.status == 'valid' %}
+        <form method="POST" action="{{ url_for('qualification.revoke', qid=q.id) }}" style="margin-top:8px;"
+              onsubmit="return confirm('자격을 취소 처리하시겠습니까?');">
+          <button type="submit" class="btn btn-outline" style="width:100%;">자격 취소</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">📄 인증서</div>
+      <div class="card-body">
+        {% if q.status == 'valid' %}
+        <a href="{{ url_for('qualification.certificate', qid=q.id) }}" class="btn btn-success" style="width:100%;text-align:center;">🏅 자격인증서 발급</a>
+        <p style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;line-height:1.5;">
+          발급 이력: {{ q.issue_count or 0 }}회{% if q.issued_at %}<br>최근: {{ q.issued_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+        </p>
+        {% else %}
+        <p style="font-size:0.8rem;color:var(--text-muted);">유효한 자격만 인증서를 발급할 수 있습니다.</p>
+        {% endif %}
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:0.74rem;color:var(--text-muted);">
+          등록: {{ q.created_by.name if q.created_by else '-' }} · {{ q.created_at.strftime('%Y-%m-%d') if q.created_at else '-' }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

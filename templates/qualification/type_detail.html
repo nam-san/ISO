@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}{{ t.name }} 자격기준{% endblock %}
+{% block breadcrumb %}🏢 조직 › 자격인정 관리 › {{ t.name }}{% endblock %}
+
+{% block content %}
+{% set col = cat_color.get(t.category, ('#64748b','#f1f5f9')) %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ t.name }}
+      <span style="background:{{ col[1] }};color:{{ col[0] }};padding:4px 11px;border-radius:11px;font-size:0.8rem;font-weight:700;">{{ t.category }}</span>
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      {{ t.procedure_doc or '-' }}{% if t.clause %} · {{ t.clause }}{% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    {% if current_user.is_admin() %}
+    <button class="btn btn-outline" onclick="openType()">✏️ 기준 수정</button>
+    <a href="{{ url_for('qualification.new', type_id=t.id) }}" class="btn btn-primary">＋ 인증 등록</a>
+    {% endif %}
+    <a href="{{ url_for('qualification.index') }}" class="btn btn-outline">← 현황</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;">
+  <div class="card">
+    <div class="card-header">📋 자격 기준</div>
+    <div class="card-body">
+      <table style="width:100%;border-collapse:collapse;">
+        {% macro row(l, v) %}
+        <tr>
+          <td style="padding:7px 0;width:104px;font-size:0.78rem;font-weight:600;color:var(--text-secondary);border-bottom:1px solid var(--border-light);vertical-align:top;">{{ l }}</td>
+          <td style="padding:7px 0;font-size:0.84rem;border-bottom:1px solid var(--border-light);white-space:pre-line;">{{ v }}</td>
+        </tr>
+        {% endmacro %}
+        {{ row('대상 직무', t.target_job or '-') }}
+        {{ row('자격요건', t.requirement or '-') }}
+        {{ row('승인권자', t.approver_role or '-') }}
+        {{ row('근거 법령·규격', t.legal_basis or '-') }}
+        {{ row('관리 기록', t.record_form or '-') }}
+        {{ row('갱신주기', (t.renewal_months|string ~ '개월') if t.renewal_months else '갱신 불요') }}
+        {% if t.note %}{{ row('비고', t.note) }}{% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">👥 인증 현황</div>
+    <div class="card-body">
+      {% set valid = certs|selectattr('status','equalto','valid')|list %}
+      {% set expired = certs|selectattr('status','equalto','expired')|list %}
+      {% set revoked = certs|selectattr('status','equalto','revoked')|list %}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;">
+        <div style="padding:14px;background:#dcfce7;border-radius:var(--radius-sm);">
+          <div style="font-size:1.6rem;font-weight:800;color:#15803d;">{{ valid|length }}</div>
+          <div style="font-size:0.78rem;color:#15803d;">유효</div>
+        </div>
+        <div style="padding:14px;background:#fee2e2;border-radius:var(--radius-sm);">
+          <div style="font-size:1.6rem;font-weight:800;color:#b91c1c;">{{ expired|length }}</div>
+          <div style="font-size:0.78rem;color:#b91c1c;">갱신경과</div>
+        </div>
+        <div style="padding:14px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--text-muted);">{{ revoked|length }}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">취소</div>
+        </div>
+      </div>
+      {% if t.renewal_months %}
+      <div style="margin-top:14px;font-size:0.78rem;color:var(--text-muted);line-height:1.6;">
+        ⏳ 이 자격은 <strong>{{ t.renewal_months }}개월마다 갱신 평가</strong>가 필요합니다. 만료 60일 전부터 '갱신 임박'으로 표시됩니다.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">인증자 명단 — 총 <strong>{{ certs|length }}</strong>명</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:130px;">인증번호</th><th>성명</th><th>부서 / 직위</th>
+          <th style="width:110px;">인증일자</th><th style="width:150px;">갱신(만료)일자</th>
+          <th style="width:90px;">승인권자</th><th style="width:70px;text-align:center;">증빙</th>
+          <th style="width:90px;">상태</th><th style="width:150px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in certs %}
+      <tr style="cursor:pointer;{% if c.status=='revoked' %}opacity:0.55;{% endif %}" onclick="location.href='{{ url_for('qualification.detail', qid=c.id) }}'">
+        <td style="font-family:monospace;font-size:0.76rem;color:var(--accent);font-weight:700;">{{ c.cert_number }}</td>
+        <td style="font-weight:600;">{{ c.person_name }}{% if c.employee_no %} <span style="font-size:0.72rem;color:var(--text-muted);">({{ c.employee_no }})</span>{% endif %}</td>
+        <td style="font-size:0.8rem;">{{ c.department.name if c.department else '-' }}{% if c.position %} / {{ c.position }}{% endif %}</td>
+        <td class="date-cell">{{ c.certified_date or '-' }}</td>
+        <td class="date-cell">
+          {{ c.expire_date or '갱신 불요' }}
+          {% if c.expire_date and c.status == 'valid' %}
+            {% set dl = (c.expire_date - today).days %}
+            {% if dl <= 60 %}<span style="color:#d97706;font-weight:700;"> D-{{ dl }}</span>{% endif %}
+          {% endif %}
+        </td>
+        <td style="font-size:0.8rem;">{{ c.approver.name if c.approver else (c.approver_name or '-') }}</td>
+        <td style="text-align:center;">
+          {% set n = c.attachments.count() %}
+          {% if n %}<span title="증빙 {{ n }}건">📎{{ n }}</span>{% else %}<span style="color:var(--text-muted);font-size:0.74rem;">-</span>{% endif %}
+        </td>
+        <td>
+          {% if c.status == 'valid' %}<span class="status-badge status-approved">유효</span>
+          {% elif c.status == 'expired' %}<span class="status-badge status-obsolete">갱신경과</span>
+          {% else %}<span class="status-badge status-draft">취소</span>{% endif %}
+        </td>
+        <td onclick="event.stopPropagation();" style="white-space:nowrap;">
+          <a href="{{ url_for('qualification.detail', qid=c.id) }}" class="btn btn-outline btn-sm">상세</a>
+          {% if c.status == 'valid' %}
+          <a href="{{ url_for('qualification.certificate', qid=c.id) }}" class="btn btn-outline btn-sm" title="자격인증서 발급">🏅 인증서</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-cell">등록된 인증자가 없습니다.
+        {% if current_user.is_admin() %}<br><a href="{{ url_for('qualification.new', type_id=t.id) }}" class="btn btn-sm btn-primary" style="margin-top:12px;display:inline-flex;">＋ 인증 등록하기</a>{% endif %}
+      </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if current_user.is_admin() %}
+<!-- 자격 기준 수정 모달 -->
+<div id="typeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div class="card" style="width:640px;max-width:94vw;max-height:90vh;overflow-y:auto;">
+    <div class="card-header">자격 기준 수정 — {{ t.name }}</div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('qualification.type_save') }}">
+        <input type="hidden" name="id" value="{{ t.id }}">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">구분 <span style="color:var(--danger)">*</span></label>
+            <select name="category" class="form-control" required>
+              {% for c in ['사내 자격인증','법정 선임인력','운전·취급 자격','위원회·직책 지정'] %}
+              <option value="{{ c }}" {% if t.category==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">갱신주기(개월)</label>
+            <input type="number" name="renewal_months" class="form-control" min="0" value="{{ t.renewal_months or '' }}" placeholder="없으면 비움">
+          </div>
+          <div class="form-group form-full">
+            <label class="form-label">자격 / 선임 명칭 <span style="color:var(--danger)">*</span></label>
+            <input type="text" name="name" class="form-control" required value="{{ t.name }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">관련 절차서</label>
+            <input type="text" name="procedure_doc" class="form-control" value="{{ t.procedure_doc or '' }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">관련 조항</label>
+            <input type="text" name="clause" class="form-control" value="{{ t.clause or '' }}">
+          </div>
+          <div class="form-group form-full">
+            <label class="form-label">대상 직무 / 업무</label>
+            <input type="text" name="target_job" class="form-control" value="{{ t.target_job or '' }}">
+          </div>
+          <div class="form-group form-full">
+            <label class="form-label">자격요건 · 선임기준</label>
+            <textarea name="requirement" class="form-control" rows="4">{{ t.requirement or '' }}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">승인권자 / 선임권자</label>
+            <input type="text" name="approver_role" class="form-control" value="{{ t.approver_role or '' }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">근거 법령 · 규격</label>
+            <input type="text" name="legal_basis" class="form-control" value="{{ t.legal_basis or '' }}">
+          </div>
+          <div class="form-group form-full">
+            <label class="form-label">관리 기록(양식)</label>
+            <input type="text" name="record_form" class="form-control" value="{{ t.record_form or '' }}">
+          </div>
+          <div class="form-group form-full">
+            <label class="form-label">비고</label>
+            <input type="text" name="note" class="form-control" value="{{ t.note or '' }}">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px;">
+          <span>
+          {% if current_user.is_admin() and certs|length == 0 %}
+          <button type="button" class="btn btn-danger btn-sm" onclick="delType()">🗑️ 자격 삭제</button>
+          {% endif %}
+          </span>
+          <span style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-outline" onclick="closeType()">취소</button>
+            <button type="submit" class="btn btn-primary">저장</button>
+          </span>
+        </div>
+      </form>
+      {% if current_user.is_admin() and certs|length == 0 %}
+      <form id="delForm" method="POST" action="{{ url_for('qualification.type_delete', type_id=t.id) }}" style="display:none;"></form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openType() { document.getElementById('typeModal').style.display = 'flex'; }
+function closeType() { document.getElementById('typeModal').style.display = 'none'; }
+function delType() {
+  if (confirm('이 자격 기준을 삭제하시겠습니까? 되돌릴 수 없습니다.')) document.getElementById('delForm').submit();
+}
+</script>
+{% endblock %}

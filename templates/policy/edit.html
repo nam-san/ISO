@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% set meta = slug_meta[slug] %}
+{% block title %}{{ p.title }} 개정{% endblock %}
+{% block breadcrumb %}📜 방침 관리 › {{ p.title }} › 개정{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ p.title }} 개정 <span>Rev.{{ p.revision_no or 0 }} → Rev.{{ (p.revision_no or 0) + 1 }}</span></div>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">
+      저장 시 현재 내용은 <strong>개정 이력</strong>으로 자동 보존됩니다.
+    </p>
+  </div>
+  <a href="{{ url_for('policy.view', slug=slug) }}" class="btn btn-outline">← 취소</a>
+</div>
+
+<form method="POST">
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">기본 정보</div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">방침 명칭 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" class="form-control" required value="{{ p.title }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">부제 (영문)</label>
+          <input type="text" name="subtitle" class="form-control" value="{{ p.subtitle or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">개정번호</label>
+          <input type="number" name="revision_no" class="form-control" min="0" value="{{ (p.revision_no or 0) + 1 }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">시행일 (제정·개정일)</label>
+          <input type="date" name="effective_date" class="form-control"
+                 value="{{ p.effective_date.strftime('%Y-%m-%d') if p.effective_date else today.strftime('%Y-%m-%d') }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">승인권자</label>
+          <input type="text" name="approver_name" class="form-control" value="{{ p.approver_name or '대표이사' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">개정 사유 <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="change_reason" class="form-control" required
+                 placeholder="예) 경영검토 결과 반영, ISO 45001 요구사항 추가">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-header">방침 내용</div>
+    <div class="card-body">
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label">도입 문단 (선언문)</label>
+        <textarea name="intro" class="form-control" rows="3"
+                  placeholder="없으면 비워 두세요.">{{ p.intro or '' }}</textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px;">
+        <label class="form-label">방침 항목 <span style="color:var(--danger)">*</span></label>
+        <div style="font-size:0.78rem;color:var(--text-muted);line-height:1.7;margin-bottom:8px;
+                    padding:10px 14px;background:var(--bg-base);border-radius:var(--radius-sm);">
+          한 줄에 항목 하나씩 입력합니다. 제목과 설명을 나누려면 <code>제목|설명</code> 형식으로 세로줄(|)을 사용하세요.<br>
+          예) <code>우리는 미래를 지향합니다.|창의와 도전으로 지속적인 변화를 추구합니다.</code>
+        </div>
+        <textarea name="body" class="form-control" rows="12" required
+                  style="font-family:'Malgun Gothic',monospace;line-height:1.8;">{{ p.body or '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">맺음 문단</label>
+        <textarea name="outro" class="form-control" rows="3"
+                  placeholder="없으면 비워 두세요.">{{ p.outro or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:8px;">
+    <a href="{{ url_for('policy.view', slug=slug) }}" class="btn btn-outline">취소</a>
+    <button type="submit" class="btn btn-primary">💾 개정 저장</button>
+  </div>
+</form>
+{% endblock %}
